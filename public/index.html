@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Organizer Builder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700&family=Lilita+One&display=swap">
+<style>
+/* Layout: a bright sticker-book desk. Thick ink outlines, hard offset shadows, chunky type.
+   One deliberate bright world (no system dark mode); students can switch the sheet's look
+   between Pop, Space, and Jungle. Note colors stay in the same order as the .docx. */
+:root {
+  --desk: #8fd3ff; --dots: rgba(255,255,255,.55);
+  --sheet: #fffdf6; --text: #1b1838; --muted: #57537a; --ink: #1b1838;
+  --accent: #ff4fa3; --accent-ink: #ffffff; --go: #3ad17a; --warn: #ffd23f;
+  --n0: #ffe066; --n1: #9ff0b6; --n2: #8fe3ff; --n3: #ffb3a7; --n4: #d9c2ff;
+  --field: rgba(255,255,255,.85);
+  --display: 'Lilita One', 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif;
+  --body: 'Lexend', 'Trebuchet MS', Verdana, sans-serif;
+  --line: 3px solid var(--ink);
+  --pop: 5px 5px 0 var(--ink);
+  color-scheme: light;
+}
+body {
+  background-color: var(--desk); color: var(--text); font: 16px/1.55 var(--body);
+  background-image: radial-gradient(var(--dots) 2.5px, transparent 3px), radial-gradient(var(--dots) 1.5px, transparent 2px);
+  background-size: 46px 46px, 23px 23px; background-position: 0 0, 11px 11px;
+  min-height: 100%;
+}
+body[data-look="space"] { --desk: #160f3d; --dots: rgba(255,255,255,.35); }
+body[data-look="jungle"] { --desk: #2bb673; --dots: rgba(255,255,160,.35); }
+.sheet[data-look="space"] { --lines: #ffffff; --sheet: #2b2273; --text: #ffffff; --muted: #cfc8ff; --accent: #ffd23f; --accent-ink: #1b1838;
+  --n0: #ffd23f; --n1: #6ff5c8; --n2: #7fd6ff; --n3: #ff8fc7; --n4: #c6a8ff; }
+.sheet[data-look="jungle"] { --sheet: #fbfff0; --accent: #ff7a1a; --n0: #fff176; --n1: #b6f36b; --n2: #74e0c6; --n3: #ffb36b; --n4: #e3f59a; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-block: 18px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; text-wrap: balance; margin: 0; letter-spacing: .01em; }
+button, input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px dashed var(--accent); outline-offset: 3px; }
+
+/* top bar */
+.top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-size: 1.8rem; color: var(--ink); background: var(--n0); border: var(--line); box-shadow: var(--pop); border-radius: 16px; padding: 4px 16px 4px 8px; transform: rotate(-1.5deg); }
+.brand svg { flex: none; }
+.tabs { display: inline-flex; background: #fff; border: var(--line); box-shadow: var(--pop); border-radius: 999px; padding: 4px; gap: 4px; }
+.tabs button { border: 0; background: none; padding: 6px 16px; border-radius: 999px; cursor: pointer; font-weight: 700; color: var(--ink); }
+.tabs button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+/* buttons */
+.btn { border: var(--line); background: #fff; color: var(--ink); border-radius: 14px; padding: 9px 18px; font-weight: 700; cursor: pointer; box-shadow: 3px 3px 0 var(--ink); transition: transform .08s, box-shadow .08s; }
+.btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: .6; cursor: progress; transform: none; }
+
+/* builder */
+.builder { display: grid; grid-template-columns: minmax(0, 410px) minmax(0, 1fr); gap: 26px; align-items: start; }
+@media (max-width: 940px) { .builder { grid-template-columns: minmax(0, 1fr); } }
+.panel { display: grid; gap: 18px; }
+.step { background: #fff; color: var(--ink); border: var(--line); box-shadow: var(--pop); border-radius: 20px; padding: 16px 18px 18px; display: grid; gap: 10px; }
+.step h2 { font-size: 1.35rem; display: flex; gap: 10px; align-items: center; }
+.step h2 .n { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: var(--line); font-size: 1.1rem; flex: none; background: var(--n0); }
+.step:nth-child(2) h2 .n { background: var(--n1); } .step:nth-child(3) h2 .n { background: var(--n2); } .step:nth-child(4) h2 .n { background: var(--n3); }
+label.f { display: grid; gap: 4px; font-size: .85rem; font-weight: 700; color: var(--ink); }
+label.f input, label.f textarea, .secrow input {
+  width: 100%; border: 2px solid var(--ink); border-radius: 12px; padding: 8px 10px; background: #f7f9ff; font-weight: 400; color: var(--ink);
+}
+label.f input:focus, label.f textarea:focus, .secrow input:focus { outline: none; background: #fff; box-shadow: 3px 3px 0 var(--accent); }
+label.f textarea { resize: vertical; min-height: 110px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 2px solid var(--ink); background: #fff; border-radius: 999px; padding: 3px 12px; font-size: .8rem; font-weight: 600; cursor: pointer; }
+.chip:nth-child(4n+1) { background: var(--n0); } .chip:nth-child(4n+2) { background: var(--n1); } .chip:nth-child(4n+3) { background: var(--n2); } .chip:nth-child(4n+4) { background: var(--n4); }
+.chip:hover { transform: rotate(-2deg); }
+.muted { color: var(--muted); font-size: .85rem; margin: 0; }
+.matches { display: grid; gap: 10px; }
+.match { text-align: left; border: 2px solid var(--ink); background: #fff; color: var(--ink); border-radius: 14px; padding: 10px 12px; cursor: pointer; display: grid; gap: 4px; }
+.match[aria-pressed="true"] { background: var(--n0); box-shadow: 4px 4px 0 var(--ink); border-width: 3px; }
+.match .row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.match strong { font-family: var(--display); font-weight: 400; font-size: 1.15rem; }
+.fit { font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 10px; border-radius: 999px; white-space: nowrap; border: 2px solid var(--ink); background: #fff; }
+.fit.strong { background: var(--go); }
+.fit.good { background: var(--n2); }
+.why { font-size: .8rem; color: var(--muted); }
+.why b { color: var(--ink); }
+.linkbtn { background: none; border: 0; color: var(--ink); text-decoration: underline wavy var(--accent); text-underline-offset: 4px; font-weight: 700; cursor: pointer; padding: 0; justify-self: start; }
+.secrow, .sechead { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 64px; gap: 6px; align-items: center; }
+.sechead { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.copyrow { display: flex; gap: 8px; }
+.copyrow input { flex: 1; min-width: 0; border: 2px solid var(--ink); border-radius: 12px; padding: 8px 10px; background: #f7f9ff; font-size: .8rem; }
+.note { border: 2px solid var(--ink); border-radius: 12px; padding: 8px 12px; font-size: .85rem; margin: 0; font-weight: 600; color: var(--ink); }
+.note.ok { background: #c9f7d9; }
+.note.warn { background: #fff1b8; }
+ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 4px; }
+.preview-label { display: inline-block; font-family: var(--display); font-size: 1.05rem; color: var(--ink); background: #fff; border: var(--line); border-radius: 999px; padding: 2px 14px; margin: 0 0 12px; transform: rotate(-1deg); }
+
+/* student sheet */
+.sheet { background: var(--sheet); color: var(--text); border: var(--line); box-shadow: 8px 8px 0 var(--ink); border-radius: 28px; padding: clamp(18px, 3.2vw, 36px); display: grid; gap: 24px; position: relative; overflow: hidden; }
+.sheet-head { display: grid; gap: 10px; position: relative; }
+.headrow { display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between; align-items: center; }
+.eyebrow { margin: 0; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); background: var(--n2); border: 2px solid var(--ink); border-radius: 999px; padding: 2px 12px; }
+.looks { display: inline-flex; gap: 6px; align-items: center; font-size: .8rem; font-weight: 700; color: var(--muted); }
+.looks button { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--ink); cursor: pointer; padding: 0; display: grid; place-items: center; }
+.looks button[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--sheet), 0 0 0 6px var(--accent); }
+.looks [data-look="pop"] { background: conic-gradient(#ffe066 0 33%, #ff4fa3 0 66%, #8fe3ff 0); }
+.looks [data-look="space"] { background: radial-gradient(circle at 30% 30%, #fff 0 2px, transparent 3px), radial-gradient(circle at 70% 65%, #fff 0 1.5px, transparent 2.5px), #2b2273; }
+.looks [data-look="jungle"] { background: linear-gradient(135deg, #b6f36b 0 50%, #2bb673 0); }
+.sheet h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.02; color: var(--text); }
+.directions { margin: 0; max-width: 62ch; color: var(--muted); font-size: 1.02rem; }
+.who { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: end; }
+.who label { display: grid; gap: 2px; font-size: .85rem; font-weight: 700; color: var(--muted); }
+.who input { border: 0; border-bottom: 3px solid var(--text); background: transparent; padding: 2px 2px; font: 400 1.3rem var(--display); min-width: 0; width: 260px; max-width: 100%; color: var(--text); }
+.who input:focus { outline: none; border-bottom-style: dashed; border-color: var(--accent); }
+.progress { display: grid; gap: 4px; flex: 1; min-width: 220px; max-width: 420px; }
+.progress .ptext { font-size: .85rem; font-weight: 700; color: var(--text); }
+.bar { height: 22px; border-radius: 999px; background: var(--field); border: var(--line); position: relative; }
+.bar i { display: block; height: 100%; border-radius: 999px; background: repeating-linear-gradient(-45deg, var(--go) 0 10px, #2fbf6c 10px 20px); transition: width .4s; min-width: 0; }
+.bar .rocket { position: absolute; top: 50%; transform: translate(-60%, -50%) rotate(45deg); transition: left .4s; width: 30px; height: 30px; }
+
+/* organizer layouts (container queries so the preview pane and phones both work) */
+.org-wrap { container-type: inline-size; }
+.org { display: grid; gap: 20px; position: relative; }
+.card { background: var(--n0); color: var(--ink); border: var(--line); box-shadow: var(--pop); border-radius: 20px; padding: 14px; display: grid; gap: 6px; align-content: start; min-width: 0; position: relative; }
+.card.c1 { background: var(--n1); } .card.c2 { background: var(--n2); } .card.c3 { background: var(--n3); } .card.c4 { background: var(--n4); }
+.card:nth-child(odd) { transform: rotate(-.6deg); } .card:nth-child(even) { transform: rotate(.5deg); }
+.card:focus-within { transform: rotate(0) scale(1.01); z-index: 2; }
+.card h3 { font-size: 1.3rem; display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.card .num { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #fff; border: 2.5px solid var(--ink); font-size: 1rem; }
+.card .hint { margin: 0; font-size: .85rem; color: var(--ink); opacity: .75; }
+.card textarea { width: 100%; border: 2px solid var(--ink); background: var(--field); border-radius: 12px; padding: 8px 10px; resize: none; overflow: hidden; line-height: 1.45; min-height: 78px; color: var(--ink); }
+.card textarea.line { min-height: 0; }
+.card textarea::placeholder { color: rgba(27,24,56,.45); }
+.card textarea:focus { outline: none; background: #fff; box-shadow: inset 0 0 0 2px var(--accent); }
+.lines { display: grid; gap: 7px; }
+.li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px; align-items: start; }
+.li::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2.5px solid var(--ink); margin-top: 13px; }
+
+.org-columns { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.org-stack { grid-template-columns: minmax(0, 1fr); }
+.org-stack .card:first-child { border-radius: 60px 60px 20px 20px; padding-top: 22px; }
+.org-stack .card:last-child { border-radius: 20px 20px 60px 60px; padding-bottom: 24px; }
+.org-quad { grid-template-columns: 1fr 1fr; grid-template-areas: "q1 q2" "q0 q0" "q3 q4"; }
+.org-quad .card[data-pos="q0"] { grid-area: q0; justify-self: center; width: min(100%, 420px); border-radius: 999px; padding: 18px 34px; text-align: center; }
+.org-quad .card[data-pos="q0"] h3 { justify-content: center; }
+.org-quad .card[data-pos="q1"] { grid-area: q1; } .org-quad .card[data-pos="q2"] { grid-area: q2; }
+.org-quad .card[data-pos="q3"] { grid-area: q3; } .org-quad .card[data-pos="q4"] { grid-area: q4; }
+.org-chain { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); column-gap: 40px; row-gap: 26px; }
+.org-chain .card:not(:last-child)::after {
+  content: ""; position: absolute; right: -36px; top: 50%; width: 30px; height: 26px; transform: translateY(-50%);
+  background: var(--lines, var(--ink)); clip-path: polygon(0 30%, 55% 30%, 55% 0, 100% 50%, 55% 100%, 55% 70%, 0 70%);
+}
+.org-web { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-areas: "s1 s2 s3" "s8 c s4" "s7 s6 s5"; }
+.org-web .card.center { grid-area: c; border-radius: 50% / 40%; padding: 30px 24px; text-align: center; align-self: center; transform: none; }
+.org-web .card.center h3 { justify-content: center; font-size: 1.5rem; }
+
+.org-db { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: "a ta both tb b"; column-gap: 28px; align-items: center; padding-block: 6px; }
+.db-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 0; }
+.db-lines line { stroke-width: 3; stroke-linecap: round; }
+.db-col { display: grid; gap: 18px; position: relative; z-index: 1; min-width: 0; }
+.db-col[data-area="a"] { grid-area: a; } .db-col[data-area="both"] { grid-area: both; } .db-col[data-area="b"] { grid-area: b; }
+.db-head { margin: 0 auto; text-align: center; font-family: var(--display); font-size: 1.05rem; color: var(--ink); background: #fff; border: 2px solid var(--ink); border-radius: 999px; padding: 0 12px; }
+.bubble { --bg: var(--n2); background: var(--bg); color: var(--ink); border: var(--line); box-shadow: 4px 4px 0 var(--ink); border-radius: 999px; padding: 10px 20px; display: grid; min-height: 66px; align-items: center; }
+.bubble.both { --bg: var(--n0); }
+.bubble.right { --bg: var(--n3); }
+.bubble textarea { width: 100%; border: 0; background: transparent; resize: none; overflow: hidden; text-align: center; line-height: 1.35; padding: 4px 0; min-height: 0; color: var(--ink); }
+.bubble textarea::placeholder { color: rgba(27,24,56,.45); }
+.bubble textarea:focus { outline: none; }
+.bubble:focus-within { box-shadow: 4px 4px 0 var(--accent); }
+.topic { width: 160px; height: 160px; border-radius: 50%; border-width: 4px; box-shadow: 6px 6px 0 var(--ink); padding: 14px; text-align: center; place-items: center; position: relative; z-index: 1; }
+.topic[data-area="ta"] { grid-area: ta; } .topic[data-area="tb"] { grid-area: tb; }
+.topic strong { font: 400 1.5rem/1.05 var(--display); overflow-wrap: anywhere; }
+.topic textarea { font: 400 1.3rem/1.1 var(--display); }
+
+@container (max-width: 920px) {
+  .org-db { column-gap: 16px; }
+  .topic { width: 112px; height: 112px; }
+  .topic strong { font-size: 1.15rem; }
+  .bubble { padding: 8px 12px; }
+  .bubble textarea { font-size: .9rem; }
+}
+@container (max-width: 620px) {
+  .org-quad { grid-template-columns: minmax(0, 1fr); grid-template-areas: "q0" "q1" "q2" "q3" "q4"; }
+  .org-chain { grid-template-columns: minmax(0, 1fr); row-gap: 44px; }
+  .org-chain .card:not(:last-child)::after { right: auto; left: 50%; top: auto; bottom: -38px; transform: translateX(-50%) rotate(90deg); }
+  .org-web { grid-template-columns: minmax(0, 1fr); grid-template-areas: none; }
+  .org-web .card { grid-area: auto !important; }
+  .org-web .card.center { border-radius: 40px; }
+  .org-db { grid-template-columns: 1fr 1fr; grid-template-areas: "ta tb" "a a" "both both" "b b"; row-gap: 22px; justify-items: center; }
+  .org-db .db-col { width: 100%; }
+  .topic { width: 128px; height: 128px; }
+  .topic strong { font-size: 1.2rem; }
+  .db-lines { display: none; }
+}
+
+.checklist { border-top: 3px dashed var(--muted); padding-top: 20px; display: grid; gap: 12px; }
+.checklist h2 { font-size: 1.6rem; color: var(--text); }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.checks label { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: start; cursor: pointer; max-width: 70ch; }
+.checks input { appearance: none; width: 28px; height: 28px; margin: 0; border: var(--line); border-radius: 8px; background: #fff; display: grid; place-items: center; cursor: pointer; }
+.checks input:checked { background: var(--go); }
+.checks input:checked::after { content: ""; width: 12px; height: 7px; border-left: 3.5px solid var(--ink); border-bottom: 3.5px solid var(--ink); transform: translateY(-2px) rotate(-45deg); }
+.checks input:checked + span { text-decoration: line-through; text-decoration-thickness: 2px; opacity: .75; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.actions .btn.primary { font-family: var(--display); font-weight: 400; font-size: 1.4rem; padding: 10px 26px; border-radius: 18px; box-shadow: var(--pop); }
+.saved { font-size: .82rem; color: var(--muted); margin-left: auto; }
+.status { margin: 0; border: var(--line); border-radius: 16px; padding: 12px 16px; color: var(--ink); font-weight: 600; }
+.status.info { background: #e3f4ff; }
+.status.ok { background: #c9f7d9; box-shadow: var(--pop); }
+.status.bad { background: #ffd9d4; }
+.status a { color: inherit; }
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+
+@media (prefers-reduced-motion: reduce) { .bar i, .bar .rocket, .btn { transition: none; } .card, .card:nth-child(odd), .card:nth-child(even) { transform: none; } }
+</style>
+
+<div class="wrap">
+  <div class="top" id="topbar">
+    <div class="brand">
+      <svg width="44" height="34" viewBox="0 0 44 34" aria-hidden="true"><line x1="14" y1="17" x2="30" y2="17" stroke="#1b1838" stroke-width="3"/><circle cx="12" cy="17" r="10" fill="#8fe3ff" stroke="#1b1838" stroke-width="3"/><circle cx="32" cy="17" r="10" fill="#ffb3a7" stroke="#1b1838" stroke-width="3"/><circle cx="22" cy="5" r="4" fill="#fff" stroke="#1b1838" stroke-width="2.5"/></svg>
+      Organizer Builder
+    </div>
+    <div class="tabs" role="group" aria-label="View">
+      <button type="button" id="tab-build" aria-pressed="true">Teacher setup</button>
+      <button type="button" id="tab-student" aria-pressed="false">Student view</button>
+    </div>
+  </div>
+
+  <div class="builder" id="builder">
+    <div class="panel">
+      <section class="step">
+        <h2><span class="n">1</span>Paste the assignment</h2>
+        <label class="f">Assignment title<input id="a-title" autocomplete="off"></label>
+        <label class="f">Criteria, directions, or rubric<textarea id="a-criteria" rows="6"></textarea></label>
+        <div class="chips" id="samples" aria-label="Try an example"></div>
+        <button type="button" class="btn primary" id="find">Find organizers</button>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">2</span>Pick an organizer</h2>
+        <div class="matches" id="matches"></div>
+        <button type="button" class="linkbtn" id="show-all">Show all organizers</button>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">3</span>Adjust it</h2>
+        <label class="f">Title students see<input id="c-title" autocomplete="off"></label>
+        <label class="f">Directions<textarea id="c-dir" rows="2" style="min-height:64px"></textarea></label>
+        <div class="sechead"><span>Box</span><span>Prompt</span><span>How many</span></div>
+        <div id="secs" style="display:grid;gap:6px"></div>
+        <label class="f">Checklist (one per line)<textarea id="c-check" rows="4"></textarea></label>
+      </section>
+
+      <section class="step">
+        <h2><span class="n">4</span>Connect Canvas and share</h2>
+        <label class="f">Canvas assignment link<input id="c-canvas" placeholder="https://cciubva.instructure.com/courses/123/assignments/456" autocomplete="off"></label>
+        <p class="note warn" id="canvas-note">Paste the assignment's link so student work turns in to the right place.</p>
+        <label class="f" for="share-link">Student link</label>
+        <div class="copyrow"><input id="share-link" readonly><button type="button" class="btn" id="copy-link">Copy</button></div>
+        <ol class="howto">
+          <li>In Canvas, set the assignment's submission type to <b>File Uploads</b> (allow .docx).</li>
+          <li>Paste the student link into the assignment description.</li>
+          <li>Students fill it in, click <b>Turn in to Canvas</b>, and get a copy by email.</li>
+        </ol>
+      </section>
+    </div>
+
+    <div>
+      <p class="preview-label">Live preview: what students see</p>
+      <div id="preview"></div>
+    </div>
+  </div>
+
+  <div id="student" hidden></div>
+</div>
+
+<script src="organizers.js"></script>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
+  };
+  const enc = o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const dec = s => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))));
+  const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
+  const FN = '/.netlify/functions/';
+
+  const SAMPLES = [
+    { tag: 'ELA: compare characters', title: 'Ponyboy vs. Johnny',
+      text: '- Compare and contrast Ponyboy and Johnny in The Outsiders.\n- Include at least three similarities and three differences.\n- Support each point with text evidence and a page number.\n- Finish with a sentence that explains which character changes more.' },
+    { tag: 'Science: process', title: 'How the Water Cycle Works',
+      text: 'Explain the water cycle as a process. Show the stages in order: evaporation, condensation, precipitation, and collection. Describe what makes each stage happen. Include 4 steps.' },
+    { tag: 'Social studies: argument', title: 'Four-Day School Week',
+      text: 'Should our school switch to a four-day week? State your claim, give three pieces of evidence from the articles, and explain your reasoning.' },
+    { tag: 'Vocabulary', title: 'Key Term: Photosynthesis',
+      text: 'Define photosynthesis in your own words. List its characteristics, two examples, and two non-examples.' },
+  ];
+
+  // ---------- student sheet ----------
+  function fieldsFor(card, answers, live) {
+    const v = GO.valueOf(card, answers);
+    const ro = live ? '' : ' tabindex="-1"';
+    if (Array.isArray(v)) {
+      return '<div class="lines">' + v.map((x, i) =>
+        `<div class="li"><textarea class="line${x.trim() ? ' filled' : ''}" rows="1" id="f-${esc(card.sid)}-${i}" data-sid="${esc(card.sid)}" data-li="${i}" aria-label="${esc(card.label)} ${i + 1}"${ro}>${esc(x)}</textarea></div>`).join('') + '</div>';
+    }
+    const id = card.idx === null ? card.sid : card.sid + '-' + card.idx;
+    return `<textarea id="f-${esc(id)}" rows="3" data-sid="${esc(card.sid)}"${card.idx === null ? '' : ` data-bi="${card.idx}"`} placeholder="${esc(card.hint)}" aria-label="${esc(card.label)}" class="${v.trim() ? 'filled' : ''}"${ro}>${esc(v)}</textarea>`;
+  }
+
+  const WEB_SLOTS = ['s2', 's6', 's8', 's4', 's1', 's3', 's5', 's7'];
+
+  // Double Bubble Map: two topic circles, shared bubbles between, unique bubbles outside.
+  function doubleBubbleHTML(cfg, answers) {
+    const cs = GO.cards(cfg), by = id => cs.find(c => c.sid === id);
+    const topic = (c, side) => {
+      const inner = GO.topicIsOpen(c)
+        ? `<textarea id="f-${c.sid}" rows="2" data-sid="${c.sid}" placeholder="${esc(c.label)}" aria-label="${esc(c.hint)}">${esc(GO.valueOf(c, answers))}</textarea>`
+        : `<strong>${esc(c.label)}</strong>`;
+      return `<div class="bubble topic${side}" data-area="${c.sid}" data-topic="${c.sid}">${inner}</div>`;
+    };
+    const col = (c, cls, ends) => `<div class="db-col" data-area="${c.sid}"><p class="db-head">${esc(c.label)}</p>` +
+      GO.valueOf(c, answers).map((v, i) =>
+        `<div class="bubble ${cls}" data-ends="${ends}"><textarea class="line" rows="1" id="f-${c.sid}-${i}" data-sid="${c.sid}" data-li="${i}" placeholder="${esc(c.hint.split(':')[0])}" aria-label="${esc(c.label)} ${i + 1}">${esc(v)}</textarea></div>`).join('') + '</div>';
+    return `<div class="org-wrap"><div class="org org-db"><svg class="db-lines" aria-hidden="true"></svg>
+      ${col(by('a'), '', 'ta')}${topic(by('ta'), '')}${col(by('both'), 'both', 'ta tb')}${topic(by('tb'), ' right')}${col(by('b'), 'right', 'tb')}</div></div>`;
+  }
+
+  function drawBubbleLines(root) {
+    const org = root.querySelector('.org-db'); if (!org) return;
+    const svg = org.querySelector('.db-lines');
+    if (getComputedStyle(svg).display === 'none') return;
+    const box = org.getBoundingClientRect();
+    const mid = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top]; };
+    const ends = { ta: mid(org.querySelector('[data-topic="ta"]')), tb: mid(org.querySelector('[data-topic="tb"]')) };
+    const color = { ta: 'var(--lines, var(--ink))', tb: 'var(--lines, var(--ink))' };
+    let out = '';
+    org.querySelectorAll('.bubble[data-ends]').forEach(b => {
+      const [x, y] = mid(b);
+      for (const t of b.dataset.ends.split(' ')) out += `<line x1="${ends[t][0]}" y1="${ends[t][1]}" x2="${x}" y2="${y}" stroke="${color[t]}"/>`;
+    });
+    svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+    svg.innerHTML = out;
+  }
+
+  function organizerHTML(cfg, answers, live) {
+    if (cfg.layout === 'doublebubble') return doubleBubbleHTML(cfg, answers);
+    const cards = GO.cards(cfg);
+    const numbered = cfg.layout === 'chain' || cfg.layout === 'stack';
+    return `<div class="org-wrap"><div class="org org-${esc(cfg.layout)}">` + cards.map((c, i) => {
+      let attrs = '', cls = 'card c' + c.color;
+      if (cfg.layout === 'quad') attrs = ` data-pos="q${i}"`;
+      if (cfg.layout === 'web') { if (i === 0) cls += ' center'; else attrs = ` style="grid-area:${WEB_SLOTS[(i - 1) % 8]}"`; }
+      const label = numbered ? `<span class="num">${i + 1}</span>${esc(c.label)}` : esc(c.label);
+      return `<section class="${cls}"${attrs}><h3>${label}</h3><p class="hint">${esc(c.hint)}</p>${fieldsFor(c, answers, live)}</section>`;
+    }).join('') + '</div></div>';
+  }
+
+  function progressOf(cfg, answers) {
+    let total = 0, filled = 0;
+    for (const c of GO.cards(cfg)) {
+      if (c.kind === 'topic') continue;
+      const v = GO.valueOf(c, answers);
+      if (Array.isArray(v)) { total += v.length; filled += v.filter(x => x.trim()).length; }
+      else { total++; if (v.trim()) filled++; }
+    }
+    return { total, filled };
+  }
+
+  function sheetHTML(cfg, answers, live) {
+    const checks = (cfg.checklist || []).map((t, i) =>
+      `<li><label><input type="checkbox" id="chk-${i}" data-chk="${i}"${(answers.checks || [])[i] ? ' checked' : ''}><span>${esc(t)}</span></label></li>`).join('');
+    return `<article class="sheet" data-look="${esc(answers.look || 'pop')}">
+      <header class="sheet-head">
+        <div class="headrow">
+          <p class="eyebrow">${esc(cfg.name)}</p>
+          <div class="looks" role="group" aria-label="Pick a look">Pick a look
+            ${['pop', 'space', 'jungle'].map(l => `<button type="button" data-look="${l}" aria-label="${l}" aria-pressed="${(answers.look || 'pop') === l}"></button>`).join('')}
+          </div>
+        </div>
+        <h1>${esc(cfg.title)}</h1>
+        ${cfg.directions ? `<p class="directions">${esc(cfg.directions)}</p>` : ''}
+        <div class="who">
+          <label>Your name<input id="st-name" autocomplete="name" value="${esc(answers.name || '')}"></label>
+          <div class="progress"><span class="ptext" id="prog-text"></span><span class="bar"><i id="prog-bar"></i>${ROCKET}</span></div>
+        </div>
+      </header>
+      ${organizerHTML(cfg, answers, live)}
+      ${checks ? `<section class="checklist"><h2>Before you turn it in</h2><ul class="checks">${checks}</ul></section>` : ''}
+      <div class="actions">
+        <button type="button" class="btn primary" id="turn-in">Turn in to Canvas</button>
+        <button type="button" class="btn" id="download">Download my copy (.docx)</button>
+        <span class="saved" id="saved"></span>
+      </div>
+      <p class="status" id="status" role="status" hidden></p>
+    </article>`;
+  }
+
+  const ROCKET = '<svg class="rocket" id="rocket" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2c6 4 8 11 6 19h-12C8 13 10 6 16 2z" fill="#fff" stroke="#1b1838" stroke-width="2.5" stroke-linejoin="round"/><circle cx="16" cy="12" r="3" fill="#8fe3ff" stroke="#1b1838" stroke-width="2"/><path d="M10 17l-4 6 5-1M22 17l4 6-5-1" fill="#ff4fa3" stroke="#1b1838" stroke-width="2" stroke-linejoin="round"/><path d="M13 22c0 4 3 7 3 7s3-3 3-7" fill="#ffd23f" stroke="#1b1838" stroke-width="2" stroke-linejoin="round"/></svg>';
+  const CHEERS = [[0, "Let's get started!"], [1, 'Nice start!'], [.34, 'Keep it going!'], [.67, 'Almost there!'], [1.01, 'All filled in. Check your list, then turn it in!']];
+
+  function confetti() {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const c = document.createElement('canvas'); c.className = 'confetti'; document.body.appendChild(c);
+    const x = c.getContext('2d'); c.width = innerWidth; c.height = innerHeight;
+    const colors = ['#ffe066', '#ff4fa3', '#8fe3ff', '#3ad17a', '#d9c2ff', '#ff7a1a'];
+    const bits = Array.from({ length: 140 }, () => ({ x: Math.random() * c.width, y: -20 - Math.random() * c.height * .5, vx: (Math.random() - .5) * 4, vy: 2 + Math.random() * 4, r: Math.random() * 6, s: 6 + Math.random() * 7, col: colors[Math.floor(Math.random() * colors.length)] }));
+    let f = 0;
+    (function tick() {
+      x.clearRect(0, 0, c.width, c.height);
+      for (const b of bits) { b.x += b.vx; b.y += b.vy; b.r += .1; x.save(); x.translate(b.x, b.y); x.rotate(b.r); x.fillStyle = b.col; x.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); x.restore(); }
+      if (++f < 200) requestAnimationFrame(tick); else c.remove();
+    })();
+  }
+
+  function grow(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; }
+
+  // Mounts an interactive sheet. onChange is called after every edit.
+  function mountSheet(el, cfg, answers, { onChange, preview }) {
+    el.innerHTML = sheetHTML(cfg, answers, true);
+    const sheet = el.querySelector('.sheet');
+    const status = (msg, kind) => { const s = sheet.querySelector('#status'); s.hidden = !msg; s.className = 'status ' + (kind || 'info'); s.innerHTML = msg || ''; };
+    const showProgress = () => {
+      const p = progressOf(cfg, answers);
+      const pct = p.total ? p.filled / p.total : 0;
+      sheet.querySelector('#prog-bar').style.width = pct * 100 + '%';
+      sheet.querySelector('#rocket').style.left = `max(14px, ${pct * 100}%)`;
+      const cheer = p.filled === p.total ? CHEERS[4][1] : p.filled === 0 ? CHEERS[0][1] : pct >= .67 ? CHEERS[3][1] : pct >= .34 ? CHEERS[2][1] : CHEERS[1][1];
+      sheet.querySelector('#prog-text').textContent = `${cheer} ${p.filled}/${p.total}`;
+    };
+    sheet.querySelectorAll('textarea').forEach(grow);
+    showProgress();
+    const lines = () => requestAnimationFrame(() => drawBubbleLines(sheet));
+    lines();
+    if (window.ResizeObserver && sheet.querySelector('.org-db')) new ResizeObserver(lines).observe(sheet.querySelector('.org-db'));
+    if (document.fonts) document.fonts.ready.then(lines);
+    if (!preview) document.body.dataset.look = answers.look || 'pop';
+    sheet.querySelector('.looks').addEventListener('click', e => {
+      const b = e.target.closest('[data-look]'); if (!b) return;
+      answers.look = b.dataset.look; sheet.dataset.look = answers.look;
+      if (!preview) document.body.dataset.look = answers.look;
+      sheet.querySelectorAll('.looks button').forEach(x => x.setAttribute('aria-pressed', x === b));
+      onChange && onChange();
+    });
+
+    sheet.addEventListener('input', e => {
+      const t = e.target;
+      answers.s = answers.s || {};
+      if (t.id === 'st-name') answers.name = t.value;
+      else if (t.dataset.chk !== undefined) { (answers.checks = answers.checks || [])[+t.dataset.chk] = t.checked; }
+      else if (t.dataset.sid) {
+        const sid = t.dataset.sid;
+        if (t.dataset.li !== undefined || t.dataset.bi !== undefined) {
+          const arr = Array.isArray(answers.s[sid]) ? answers.s[sid] : [];
+          arr[+(t.dataset.li ?? t.dataset.bi)] = t.value;
+          answers.s[sid] = arr;
+        } else answers.s[sid] = t.value;
+        t.classList.toggle('filled', !!t.value.trim());
+        grow(t);
+        lines();
+      }
+      showProgress();
+      onChange && onChange();
+    });
+
+    sheet.querySelector('#download').addEventListener('click', async ev => {
+      const b = ev.currentTarget; b.disabled = true;
+      try {
+        const res = await fetch(FN + 'docx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cfg, answers }) });
+        if (!res.ok) throw new Error();
+        const blob = await res.blob();
+        const name = (/filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '') || [])[1] || 'organizer.docx';
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        status(`Downloaded <b>${esc(name)}</b>. Check your Downloads folder.`, 'ok');
+      } catch {
+        status(preview ? 'Downloading works once the site is hosted on Netlify. This preview has no server.' : 'The copy could not be made right now. Try again in a minute.', 'bad');
+      } finally { b.disabled = false; }
+    });
+
+    sheet.querySelector('#turn-in').addEventListener('click', async ev => {
+      const b = ev.currentTarget;
+      if (preview) return status('In the real page this opens Canvas sign-in, turns in the .docx, and emails the student a copy. It works once the site is hosted.', 'info');
+      if (!cfg.canvas) return status('This organizer is not connected to a Canvas assignment yet. Ask your teacher for the updated link.', 'bad');
+      const p = progressOf(cfg, answers);
+      if (!p.filled) return status('Fill in at least one box before you turn it in.', 'bad');
+      const pop = window.open(FN + 'auth-start', 'go-auth', 'width=520,height=700');
+      if (!pop) return status(`Your browser blocked the Canvas sign-in window. Allow pop-ups for this page, then click Turn in again.`, 'bad');
+      b.disabled = true;
+      status('Sign in to Canvas in the window that opened. Your work is saved while you do.');
+      try {
+        const auth = await waitForAuth();
+        if (!auth.ok) throw new Error('Canvas sign-in did not finish. Click Turn in to try again.');
+        status('Turning in your organizer…');
+        const res = await fetch(FN + 'submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cfg, answers, session: auth.session }) });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.ok) throw new Error(out.error || 'Something went wrong turning it in. Your work is still saved here.');
+        answers.submittedAt = out.submittedAt; onChange && onChange();
+        const when = new Date(out.submittedAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+        confetti();
+        status(`<b>Turned in!</b> Canvas has <b>${esc(out.fileName)}</b> (${esc(when)}). ` +
+          (out.emailed ? `A copy is on its way to ${esc(out.emailed)}.` : esc(out.emailError || 'Use Download my copy to keep one for yourself.')), 'ok');
+      } catch (e) {
+        status(esc(e.message), 'bad');
+      } finally { b.disabled = false; }
+    });
+
+    if (answers.submittedAt) status(`You turned this in on ${esc(new Date(answers.submittedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}. You can still edit and turn it in again.`, 'ok');
+    return { status };
+  }
+
+  // The sign-in popup posts its result back; localStorage is the backup path.
+  function waitForAuth() {
+    return new Promise(resolve => {
+      const done = data => { window.removeEventListener('message', onMsg); window.removeEventListener('storage', onStore); clearTimeout(timer); resolve(data); };
+      const onMsg = e => { if (e.origin === location.origin && e.data && e.data.type === 'go-auth') done(e.data); };
+      const onStore = e => { if (e.key === 'go-auth' && e.newValue) { try { done(JSON.parse(e.newValue)); localStorage.removeItem('go-auth'); } catch {} } };
+      const timer = setTimeout(() => done({ ok: false }), 5 * 60 * 1000);
+      window.addEventListener('message', onMsg);
+      window.addEventListener('storage', onStore);
+    });
+  }
+
+  // ---------- student-only page (opened from the shared link) ----------
+  const param = new URLSearchParams(location.search).get('o');
+  if (param) {
+    let cfg;
+    try { cfg = dec(param); } catch { cfg = null; }
+    $('#builder').hidden = true; $('#topbar').hidden = true;
+    const el = $('#student'); el.hidden = false;
+    if (!cfg || !Array.isArray(cfg.sections)) { el.innerHTML = '<p class="status bad">This organizer link is broken. Ask your teacher to send it again.</p>'; return; }
+    document.title = cfg.title;
+    const key = 'go:' + hash(param);
+    const answers = store.get(key) || { name: '', s: {}, checks: [] };
+    let t;
+    mountSheet(el, cfg, answers, {
+      onChange() {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          const ok = store.set(key, answers);
+          const s = document.querySelector('#saved');
+          if (s) s.textContent = ok ? 'Saved on this device ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Not saved: this browser blocks saving';
+        }, 350);
+      },
+    });
+    return;
+  }
+
+  // ---------- teacher builder ----------
+  const draft = store.get('go-builder') || {};
+  let cfg = null, orgId = null, showAll = false;
+  let previewAnswers = { name: '', s: {}, checks: [] };
+
+  $('#samples').innerHTML = SAMPLES.map((s, i) => `<button type="button" class="chip" data-sample="${i}">${esc(s.tag)}</button>`).join('');
+  $('#samples').addEventListener('click', e => {
+    const i = e.target.dataset.sample; if (i === undefined) return;
+    $('#a-title').value = SAMPLES[i].title; $('#a-criteria').value = SAMPLES[i].text; runMatch(true);
+  });
+
+  function fitLabel(score, top) {
+    if (!score) return ['maybe', 'Possible'];
+    if (score >= top * .8 && score >= 6) return ['strong', 'Best fit'];
+    if (score >= top * .4) return ['good', 'Good fit'];
+    return ['maybe', 'Possible'];
+  }
+
+  let lastMatch = [];
+  function runMatch(pickTop) {
+    const text = $('#a-criteria').value;
+    lastMatch = GO.match(text);
+    if (pickTop || !orgId) choose(lastMatch[0].score ? lastMatch[0].org.id : 'web');
+    else renderMatches();
+  }
+
+  function renderMatches() {
+    const top = lastMatch[0] ? lastMatch[0].score : 0;
+    let list = showAll ? lastMatch : lastMatch.filter(m => m.score).slice(0, 3);
+    if (!list.length) list = lastMatch.filter(m => ['web', 'mainidea', 'essay'].includes(m.org.id));
+    if (!list.some(m => m.org.id === orgId)) list = list.concat(lastMatch.filter(m => m.org.id === orgId));
+    $('#matches').innerHTML = list.map(m => {
+      const [cls, txt] = fitLabel(m.score, top);
+      return `<button type="button" class="match" data-org="${m.org.id}" aria-pressed="${m.org.id === orgId}">
+        <span class="row"><strong>${esc(m.org.name)}</strong><span class="fit ${cls}">${txt}</span></span>
+        <span class="why">${esc(m.org.bestFor)}${m.hits.length ? ` · matched <b>${m.hits.map(esc).join(', ')}</b>` : ''}</span></button>`;
+    }).join('');
+    $('#show-all').textContent = showAll ? 'Show top matches only' : `Show all ${GO.ORGS.length} organizers`;
+  }
+  $('#matches').addEventListener('click', e => { const b = e.target.closest('.match'); if (b) choose(b.dataset.org); });
+  $('#show-all').addEventListener('click', () => { showAll = !showAll; renderMatches(); });
+  $('#find').addEventListener('click', () => runMatch(true));
+
+  function choose(id) {
+    orgId = id;
+    const org = GO.ORGS.find(o => o.id === id);
+    const canvas = cfg && cfg.canvas;
+    cfg = GO.buildConfig(org, $('#a-title').value.trim(), $('#a-criteria').value);
+    cfg.canvas = canvas || null;
+    previewAnswers = { name: '', s: {}, checks: [] };
+    $('#c-title').value = cfg.title; $('#c-dir').value = cfg.directions; $('#c-check').value = cfg.checklist.join('\n');
+    renderSecs(); renderMatches(); refresh();
+  }
+
+  function renderSecs() {
+    $('#secs').innerHTML = cfg.sections.map((s, i) => `<div class="secrow">
+      <input id="sl-${i}" data-i="${i}" data-k="label" value="${esc(s.label)}" aria-label="Box name">
+      <input id="sh-${i}" data-i="${i}" data-k="hint" value="${esc(s.hint)}" aria-label="Prompt">
+      ${s.count ? `<input id="sc-${i}" data-i="${i}" data-k="count" type="number" min="1" max="8" value="${s.count}" aria-label="How many">` : '<span></span>'}
+    </div>`).join('');
+  }
+  $('#secs').addEventListener('input', e => {
+    const t = e.target, s = cfg.sections[+t.dataset.i];
+    if (t.dataset.k === 'count') { const n = Math.max(1, Math.min(8, parseInt(t.value, 10) || 1)); s.count = n; }
+    else s[t.dataset.k] = t.value;
+    refresh();
+  });
+  $('#c-title').addEventListener('input', e => { cfg.title = e.target.value; refresh(); });
+  $('#c-dir').addEventListener('input', e => { cfg.directions = e.target.value; refresh(); });
+  $('#c-check').addEventListener('input', e => { cfg.checklist = e.target.value.split('\n').map(s => s.trim()).filter(Boolean); refresh(); });
+  $('#c-canvas').addEventListener('input', e => {
+    const m = e.target.value.match(/courses\/(\d+)\/assignments\/(\d+)/);
+    cfg.canvas = m ? { courseId: m[1], assignmentId: m[2] } : null;
+    refresh();
+  });
+
+  let rt;
+  function refresh() {
+    const note = $('#canvas-note');
+    if (cfg.canvas) { note.className = 'note ok'; note.textContent = `Connected: course ${cfg.canvas.courseId}, assignment ${cfg.canvas.assignmentId}.`; }
+    else { note.className = 'note warn'; note.textContent = $('#c-canvas').value.trim() ? 'That link does not look like a Canvas assignment. It should contain /courses/…/assignments/….' : 'Paste the assignment\'s link so student work turns in to the right place.'; }
+    $('#share-link').value = location.origin + location.pathname + '?o=' + enc(cfg);
+    store.set('go-builder', { title: $('#a-title').value, criteria: $('#a-criteria').value, canvas: $('#c-canvas').value, cfg });
+    clearTimeout(rt);
+    rt = setTimeout(() => {
+      const target = $('#tab-student').getAttribute('aria-pressed') === 'true' ? $('#student') : $('#preview');
+      mountSheet(target, cfg, previewAnswers, { preview: true });
+    }, 120);
+  }
+
+  $('#copy-link').addEventListener('click', async () => {
+    const inp = $('#share-link');
+    try { await navigator.clipboard.writeText(inp.value); $('#copy-link').textContent = 'Copied'; setTimeout(() => $('#copy-link').textContent = 'Copy', 1500); }
+    catch { inp.focus(); inp.select(); }
+  });
+
+  function setTab(student) {
+    $('#tab-build').setAttribute('aria-pressed', !student);
+    $('#tab-student').setAttribute('aria-pressed', student);
+    $('#builder').hidden = student; $('#student').hidden = !student;
+    if (student) $('#preview').innerHTML = ''; else $('#student').innerHTML = '';
+    refresh();
+  }
+  $('#tab-build').addEventListener('click', () => setTab(false));
+  $('#tab-student').addEventListener('click', () => setTab(true));
+
+  // start in a realistic state: the saved draft, or the first sample
+  if (draft.cfg && GO.ORGS.some(o => o.id === draft.cfg.org)) {
+    $('#a-title').value = draft.title || ''; $('#a-criteria').value = draft.criteria || ''; $('#c-canvas').value = draft.canvas || '';
+    lastMatch = GO.match($('#a-criteria').value);
+    cfg = draft.cfg; orgId = cfg.org;
+    $('#c-title').value = cfg.title; $('#c-dir').value = cfg.directions; $('#c-check').value = (cfg.checklist || []).join('\n');
+    renderSecs(); renderMatches(); refresh();
+  } else {
+    $('#a-title').value = SAMPLES[0].title; $('#a-criteria').value = SAMPLES[0].text;
+    runMatch(true);
+  }
+})();
+</script>
