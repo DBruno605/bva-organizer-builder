@@ -1,5 +1,5 @@
 // Opens Canvas sign-in in the popup the page creates when a student clicks Turn in.
-import { BASE } from '../lib/canvas.mjs';
+import { BASE, CALLBACK_PATH } from '../lib/canvas.mjs';
 import { signState } from '../lib/session.mjs';
 
 export default async (req) => {
@@ -7,7 +7,7 @@ export default async (req) => {
   const params = new URLSearchParams({
     client_id: process.env.CANVAS_CLIENT_ID,
     response_type: 'code',
-    redirect_uri: origin + '/.netlify/functions/auth-callback',
+    redirect_uri: origin + CALLBACK_PATH,
     state: signState({}),
   });
   // Only needed when the developer key has "Enforce scopes" turned on.

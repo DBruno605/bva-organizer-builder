@@ -20,10 +20,14 @@ const { chromium } = require('playwright');
   await new Promise(r => canvas.listen(0, r));
   Object.assign(process.env, { CANVAS_BASE_URL: `http://localhost:${canvas.address().port}`, CANVAS_CLIENT_ID: '1', CANVAS_CLIENT_SECRET: 's', SESSION_SECRET: 'y'.repeat(40) });
   const fns = {};
-  for (const n of ['auth-start', 'auth-callback', 'submit', 'docx']) fns[n] = (await import(path.resolve(__dirname, `../netlify/functions/${n}.mjs`))).default;
+  // VERCEL=1 runs the same flow through the Vercel entry points in api/
+  for (const n of ['auth-start', 'auth-callback', 'submit', 'docx']) {
+    if (process.env.VERCEL) { const m = await import(path.resolve(__dirname, `../api/${n}.mjs`)); fns[n] = m.GET || m.POST; }
+    else fns[n] = (await import(path.resolve(__dirname, `../netlify/functions/${n}.mjs`))).default;
+  }
   const site = http.createServer(async (req, res) => {
     const u = new URL(req.url, `http://localhost:${site.address().port}`);
-    if (u.pathname.startsWith('/.netlify/functions/')) {
+    if (u.pathname.startsWith('/.netlify/functions/') || u.pathname.startsWith('/api/')) {
       let body = Buffer.alloc(0); for await (const c of req) body = Buffer.concat([body, c]);
       const r = await fns[u.pathname.split('/').pop()](new Request(u, { method: req.method, headers: req.headers, body: req.method === 'POST' ? body : undefined }));
       res.writeHead(r.status, Object.fromEntries(r.headers)); return res.end(Buffer.from(await r.arrayBuffer()));

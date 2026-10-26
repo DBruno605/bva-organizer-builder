@@ -1,6 +1,6 @@
 // Canvas sends the student back here. Swap the code for a token, seal it,
 // and hand the sealed blob to the page that opened this popup.
-import { BASE } from '../lib/canvas.mjs';
+import { BASE, CALLBACK_PATH } from '../lib/canvas.mjs';
 import { verifyState, seal } from '../lib/session.mjs';
 
 function page(origin, message) {
@@ -32,7 +32,7 @@ export default async (req) => {
       grant_type: 'authorization_code',
       client_id: process.env.CANVAS_CLIENT_ID,
       client_secret: process.env.CANVAS_CLIENT_SECRET,
-      redirect_uri: origin + '/.netlify/functions/auth-callback',
+      redirect_uri: origin + CALLBACK_PATH,
       code,
     }),
   });

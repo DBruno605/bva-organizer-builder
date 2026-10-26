@@ -19,13 +19,14 @@ Students can also click **Download my copy (.docx)** at any time.
 | `netlify/functions/submit.mjs` | Builds the .docx, uploads and submits it, emails the copy, revokes the token |
 | `netlify/functions/docx.mjs` | "Download my copy" |
 | `netlify/lib/` | Shared code: .docx layout, Canvas calls, email, sealed sessions |
+| `api/`, `vercel.json` | Vercel entry points (they call the same functions) |
 | `test/run.mjs` | `npm test`: full flow against a fake Canvas, writes a sample .docx for every organizer to `test/out/` |
 
 ## One-time setup
 
 ### 1. Canvas developer key (BVA Canvas admin)
 Admin > Developer Keys > **+ API Key**:
-- **Redirect URI:** `https://YOUR-SITE.netlify.app/.netlify/functions/auth-callback`
+- **Redirect URI:** `https://YOUR-APP.vercel.app/api/auth-callback` on Vercel, or `https://YOUR-SITE.netlify.app/.netlify/functions/auth-callback` on Netlify
 - Turn the key **On**. Copy its **Client ID** (the number) and **Client Secret**.
 - If the admin turns on **Enforce scopes**, allow these and set `CANVAS_SCOPES` (space separated) to the same list:
   - `url:POST|/api/v1/courses/:course_id/assignments/:assignment_id/submissions/:user_id/files`
@@ -35,8 +36,16 @@ Admin > Developer Keys > **+ API Key**:
 ### 2. Email account for the copies
 Any SMTP account works. With Google Workspace, use a no-reply account and an App Password (`smtp.gmail.com`, port 465). Check with the district before emailing students from a new account.
 
-### 3. Deploy on Netlify
-In Terminal, from this folder: `npm install`, then `npx netlify-cli deploy --prod` (first run asks you to log in and create a site). Drag-and-drop deploys do not run the server functions, so use the CLI or connect the folder from GitHub. Then in Netlify, Site configuration > Environment variables:
+### 3a. Deploy on Vercel
+1. Push this folder to a GitHub repo.
+2. On vercel.com, choose **Add New > Project**, import the repo, leave Framework Preset as **Other**, and click **Deploy**. `vercel.json` already sets the page folder and the server routes.
+3. In the project's **Settings > Environment Variables**, add the variables in the table below, then go to **Deployments** and **Redeploy** so they take effect.
+4. The developer key's Redirect URI is `https://YOUR-APP.vercel.app/api/auth-callback`.
+
+The site opens at the **Domains** link on the project's page (for example `https://bva-organizer-builder.vercel.app`).
+
+### 3b. Or deploy on Netlify
+In Terminal, from this folder: `npm install`, then `npx netlify-cli deploy --prod` (first run asks you to log in and create a site). Drag-and-drop deploys do not run the server functions, so use the CLI or connect the folder from GitHub. Then in Netlify, Site configuration > Environment variables. Both hosts use these:
 
 | Variable | Value |
 |---|---|

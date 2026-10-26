@@ -1,4 +1,7 @@
 // Canvas calls made with the student's own token.
+// Where Canvas sends students back after sign-in. Must match the developer key's Redirect URI.
+export const CALLBACK_PATH = process.env.VERCEL ? '/api/auth-callback' : '/.netlify/functions/auth-callback';
+
 export const BASE = (process.env.CANVAS_BASE_URL || 'https://cciubva.instructure.com').replace(/\/$/, '');
 
 async function api(token, path, init = {}) {
