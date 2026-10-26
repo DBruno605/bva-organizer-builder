@@ -437,7 +437,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   function grow(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; }
 
   // Mounts an interactive sheet. onChange is called after every edit.
-  function mountSheet(el, cfg, answers, { onChange, preview }) {
+  function mountSheet(el, cfg, answers, { onChange, preview, saveNow }) {
     el.innerHTML = sheetHTML(cfg, answers, true);
     const sheet = el.querySelector('.sheet');
     const status = (msg, kind) => { const s = sheet.querySelector('#status'); s.hidden = !msg; s.className = 'status ' + (kind || 'info'); s.innerHTML = msg || ''; };
@@ -505,12 +505,19 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
       if (!cfg.canvas) return status('This organizer is not connected to a Canvas assignment yet. Ask your teacher for the updated link.', 'bad');
       const p = progressOf(cfg, answers);
       if (!p.filled) return status('Fill in at least one box before you turn it in.', 'bad');
-      const pop = window.open(FN + 'auth-start', 'go-auth', 'width=520,height=700');
-      if (!pop) return status(`Your browser blocked the Canvas sign-in window. Allow pop-ups for this page, then click Turn in again.`, 'bad');
+      saveNow && saveNow();
+      const pending = signIn({ type: 'submit' });
+      if (!pending) return status('Taking you to Canvas to sign in. Your work is saved.');
       b.disabled = true;
       status('Sign in to Canvas in the window that opened. Your work is saved while you do.');
+      const auth = await pending;
+      if (auth.blocked) { b.disabled = false; return status('Your browser blocked the Canvas sign-in window. Allow pop-ups for this page, then click Turn in again.', 'bad'); }
+      await finishTurnIn(auth);
+      b.disabled = false;
+    });
+
+    async function finishTurnIn(auth) {
       try {
-        const auth = await waitForAuth();
         if (!auth.ok) throw new Error('Canvas sign-in did not finish. Click Turn in to try again.');
         status('Turning in your organizer…');
         const res = await fetch(FN + 'submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cfg, answers, session: auth.session }) });
@@ -523,14 +530,36 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
           (out.emailed ? `A copy is on its way to ${esc(out.emailed)}.` : esc(out.emailError || 'Use Download my copy to keep one for yourself.')), 'ok');
       } catch (e) {
         status(esc(e.message), 'bad');
-      } finally { b.disabled = false; }
-    });
+      }
+    }
 
     if (answers.submittedAt) status(`You turned this in on ${esc(new Date(answers.submittedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}. You can still edit and turn it in again.`, 'ok');
-    return { status };
+    return { status, finishTurnIn };
   }
 
-  // The sign-in popup posts its result back; localStorage is the backup path.
+  // Canvas sign-in. A normal tab signs in right here and comes back (no new window).
+  // Inside a frame (embedded in a Canvas page) Canvas can't show its login, so a small window opens instead.
+  const framed = (() => { try { return window.self !== window.top; } catch { return true; } })();
+  function signIn(action) {
+    if (!framed) {
+      try { sessionStorage.setItem('go-pending', JSON.stringify(action)); } catch {}
+      location.href = FN + 'auth-start?return=' + encodeURIComponent(location.href.split('#')[0]);
+      return null;
+    }
+    const pop = window.open(FN + 'auth-start', 'go-auth', 'width=520,height=700');
+    return pop ? waitForAuth() : Promise.resolve({ ok: false, blocked: true });
+  }
+  // Back from same-tab sign-in: #go-session=<sealed> or #go-failed, plus what we were doing.
+  const returned = (() => {
+    const m = location.hash.match(/^#go-(session|failed)=?(.*)$/);
+    if (!m) return null;
+    history.replaceState(null, '', location.pathname + location.search);
+    let pending = null;
+    try { pending = JSON.parse(sessionStorage.getItem('go-pending')); sessionStorage.removeItem('go-pending'); } catch {}
+    return { ok: m[1] === 'session', session: decodeURIComponent(m[2]), pending: pending || {} };
+  })();
+
+  // The sign-in window posts its result back; localStorage is the backup path.
   function waitForAuth() {
     return new Promise(resolve => {
       const done = data => { window.removeEventListener('message', onMsg); window.removeEventListener('storage', onStore); clearTimeout(timer); resolve(data); };
@@ -554,7 +583,8 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
     const key = 'go:' + hash(param);
     const answers = store.get(key) || { name: '', s: {}, checks: [] };
     let t;
-    mountSheet(el, cfg, answers, {
+    const sheet = mountSheet(el, cfg, answers, {
+      saveNow() { clearTimeout(t); store.set(key, answers); },
       onChange() {
         clearTimeout(t);
         t = setTimeout(() => {
@@ -564,6 +594,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
         }, 350);
       },
     });
+    if (returned && returned.pending.type === 'submit') sheet.finishTurnIn(returned);
     return;
   }
 
@@ -723,12 +754,18 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
     if (!/courses\/\d+\/(assignments\/\d+|pages\/[^/?#\s]+)/.test(url)) {
       return uploadNote('Paste a link to a Canvas assignment or page. It should contain /courses/…/assignments/… or /courses/…/pages/….', 'warn');
     }
-    const pop = window.open(FN + 'auth-start', 'go-auth', 'width=520,height=700');
-    if (!pop) return uploadNote('Your browser blocked the Canvas sign-in window. Allow pop-ups for this site, then click Get it again.', 'warn');
+    const pending = signIn({ type: 'fetch', url });
+    if (!pending) return uploadNote('Taking you to Canvas to sign in…');
     const btn = $('#link-btn'); btn.disabled = true;
     uploadNote('Sign in to Canvas in the window that opened…');
+    const auth = await pending;
+    btn.disabled = false;
+    if (auth.blocked) return uploadNote('Your browser blocked the Canvas sign-in window. Allow pop-ups for this site, then click Get it again.', 'warn');
+    await finishLinkFetch(url, auth);
+  });
+
+  async function finishLinkFetch(url, auth) {
     try {
-      const auth = await waitForAuth();
       if (!auth.ok) throw new Error('Canvas sign-in did not finish. Click Get it to try again.');
       uploadNote('Reading it from Canvas…');
       const res = await fetch(FN + 'canvas-fetch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, session: auth.session }) });
@@ -742,8 +779,8 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
       uploadNote(`Got "${out.title}" from Canvas.` + (out.kind === 'assignment' ? ' Step 4 is connected to this assignment too.' : ''), 'ok');
     } catch (e) {
       uploadNote(e.message, 'warn');
-    } finally { btn.disabled = false; }
-  });
+    }
+  }
 
   $('#upload-btn').addEventListener('click', () => $('#a-file').click());
   $('#a-file').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
@@ -796,5 +833,6 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   } else {
     showEmpty();
   }
+  if (returned && returned.pending.type === 'fetch') { $('#a-link').value = returned.pending.url || ''; finishLinkFetch(returned.pending.url, returned); }
 })();
 </script>

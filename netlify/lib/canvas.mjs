@@ -2,7 +2,12 @@
 // Where Canvas sends students back after sign-in. Must match the developer key's Redirect URI.
 export const CALLBACK_PATH = process.env.VERCEL ? '/api/auth-callback' : '/.netlify/functions/auth-callback';
 
-export const BASE = (process.env.CANVAS_BASE_URL || 'https://cciubva.instructure.com').replace(/\/$/, '');
+export const BASE = (process.env.CANVAS_BASE_URL || 'https://cciubva.instructure.com').trim().replace(/\/$/, '');
+
+// Pasted values often pick up spaces or quotes; Canvas then answers "unknown client".
+const clean = v => String(v || '').trim().replace(/^["']|["']$/g, '');
+export const CLIENT_ID = clean(process.env.CANVAS_CLIENT_ID);
+export const CLIENT_SECRET = clean(process.env.CANVAS_CLIENT_SECRET);
 
 async function api(token, path, init = {}) {
   const res = await fetch(path.startsWith('http') ? path : BASE + path, {

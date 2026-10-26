@@ -34,6 +34,7 @@ const { chromium } = require('playwright');
       const r = await fns[u.pathname.split('/').pop()](new Request(u, { method: req.method, headers: req.headers, body: req.method === 'POST' ? body : undefined }));
       res.writeHead(r.status, Object.fromEntries(r.headers)); return res.end(Buffer.from(await r.arrayBuffer()));
     }
+    if (u.pathname === '/frame-test') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end(`<iframe src="${u.searchParams.get('src')}" style="width:1000px;height:900px"></iframe>`); }
     const f = path.join(__dirname, '../public', u.pathname === '/' ? 'index.html' : u.pathname);
     if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); }
     res.writeHead(200, { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : 'text/html' }); res.end(fs.readFileSync(f));
@@ -57,6 +58,7 @@ const { chromium } = require('playwright');
   for (const link of ['https://cciubva.instructure.com/courses/123/assignments/789?module_item_id=5', 'https://cciubva.instructure.com/courses/123/pages/water-cycle']) {
     await page.fill('#a-link', link);
     await page.click('#link-btn');
+    await page.waitForTimeout(500);
     await page.waitForFunction(() => /^Got|Canvas/.test(document.querySelector('#upload-note').textContent) && !/^Sign in|^Reading/.test(document.querySelector('#upload-note').textContent), null, { timeout: 15000 });
     uploads[link] = { note: await page.textContent('#upload-note'), title: await page.inputValue('#a-title'), pick: await page.textContent('.match[aria-pressed="true"] strong'), canvas: await page.textContent('#canvas-note'), criteria: await page.inputValue('#a-criteria') };
   }
@@ -78,8 +80,10 @@ const { chromium } = require('playwright');
   await st.waitForTimeout(600);
   await st.reload(); await st.waitForTimeout(400);
   const kept = await st.inputValue('#f-a-0');
-  const [pop] = await Promise.all([st.waitForEvent('popup'), st.click('#turn-in')]);
-  await st.waitForSelector('.status.ok', { timeout: 10000 }).catch(() => {});
+  // same-tab sign-in: the page leaves for Canvas and comes back, then turns in
+  await st.click('#turn-in');
+  await st.waitForSelector('.status.ok', { timeout: 15000 }).catch(() => {});
+  const urlAfter = st.url();
   const result = await st.textContent('#status');
   const [dl] = await Promise.all([st.waitForEvent('download'), st.click('#download')]);
   await st.screenshot({ path: `${shots}/student.png`, fullPage: true });
@@ -87,6 +91,15 @@ const { chromium } = require('playwright');
   const pp = await phone.newPage(); await pp.goto(link); await pp.waitForTimeout(600); await pp.click('.looks [data-look="space"]'); await pp.waitForTimeout(300);
   await pp.screenshot({ path: `${shots}/phone-dark.png`, fullPage: true });
   const overflow = await pp.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+  // embedded in a frame (like a Canvas page): sign-in uses a small window instead
+  const fr = await ctx.newPage();
+  await fr.setContent(`<iframe src="${link}" style="width:1000px;height:900px"></iframe>`);
+  await fr.goto(`${base}frame-test?src=${encodeURIComponent(link)}`);
+  const frame = fr.frames()[1]; await frame.waitForSelector('#turn-in');
+  const [fpop] = await Promise.all([fr.waitForEvent('popup'), frame.click('#turn-in')]);
+  await frame.waitForSelector('.status.ok', { timeout: 15000 }).catch(() => {});
+  const framedResult = await frame.textContent('#status');
+  console.log(JSON.stringify({ urlAfter, framedResult }, null, 1));
   console.log(JSON.stringify({ note, linkLen: link.length, kept, result, download: dl.suggestedFilename(), overflow, errors, calls }, null, 1));
   await browser.close(); site.close(); canvas.close();
 })();
