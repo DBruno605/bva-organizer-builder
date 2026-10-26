@@ -83,6 +83,7 @@ label.f textarea { resize: vertical; min-height: 110px; }
 .switch input:checked + .track { background: var(--go); }
 .switch input:checked + .track::after { transform: translateX(20px); }
 .switch input:focus-visible + .track { outline: 3px dashed var(--accent); outline-offset: 3px; }
+.link-hint { margin: 10px 0 0; font-weight: 700; font-size: .9rem; color: var(--ink); background: #fff3b0; border: 2px dashed var(--ink); border-radius: 12px; padding: 8px 12px; }
 .practice-tag { margin: 0; justify-self: start; font-weight: 700; font-size: .85rem; color: var(--ink); background: var(--n1); border: 2px solid var(--ink); border-radius: 999px; padding: 2px 12px; }
 .step.lib h2 .n { background: var(--n4); }
 .lib-list { display: grid; gap: 8px; }
@@ -437,8 +438,10 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   // Turn in shows only for organizers linked to a Canvas assignment and not marked as extra practice.
   const turnsIn = cfg => !cfg.practice && !!(cfg.canvas || (cfg.targets || []).length);
 
-  function sheetHTML(cfg, answers, live) {
+  function sheetHTML(cfg, answers, live, preview) {
     const canTurnIn = turnsIn(cfg);
+    // Teacher preview only: practice is off but no assignment is linked yet, so say why Turn in is missing.
+    const needsLink = preview && !cfg.practice && !canTurnIn;
     const checks = (cfg.checklist || []).map((t, i) =>
       `<li><label><input type="checkbox" id="chk-${i}" data-chk="${i}"${(answers.checks || [])[i] ? ' checked' : ''}><span>${esc(t)}</span></label></li>`).join('');
     return `<article class="sheet" data-look="${esc(answers.look || 'pop')}">
@@ -451,7 +454,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
         </div>
         <h1>${esc(cfg.title)}</h1>
         ${cfg.directions ? `<p class="directions">${esc(cfg.directions)}</p>` : ''}
-        ${canTurnIn ? '' : '<p class="practice-tag">Extra practice: use it if it helps. Nothing to turn in.</p>'}
+        ${canTurnIn || needsLink ? '' : '<p class="practice-tag">Extra practice: use it if it helps. Nothing to turn in.</p>'}
         <div class="who">
           <label>Your name<input id="st-name" autocomplete="name" value="${esc(answers.name || '')}"></label>
           <div class="progress"><span class="ptext" id="prog-text"></span><span class="bar"><i id="prog-bar"></i>${ROCKET}</span></div>
@@ -461,10 +464,12 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
       ${checks ? `<section class="checklist"><h2>${canTurnIn ? 'Before you turn it in' : 'Check your work'}</h2><ul class="checks">${checks}</ul></section>` : ''}
       <div class="actions">
         ${canTurnIn ? '<button type="button" class="btn primary" id="turn-in">Turn in to Canvas</button>' : ''}
+        ${needsLink ? '<button type="button" class="btn primary" id="turn-in" disabled>Turn in to Canvas</button>' : ''}
         <button type="button" class="btn${canTurnIn ? '' : ' primary'}" id="download">${canTurnIn ? 'Download my copy (.docx)' : 'Save my copy (.docx)'}</button>
         <span class="saved" id="saved"></span>
       </div>
       <p class="status" id="status" role="status" hidden></p>
+      ${needsLink ? '<p class="link-hint" id="link-hint">Teacher view: the Turn in button appears for students once you add a Canvas assignment link in step 4.</p>' : ''}
     </article>`;
   }
 
@@ -489,7 +494,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
 
   // Mounts an interactive sheet. onChange is called after every edit.
   function mountSheet(el, cfg, answers, { onChange, preview, saveNow }) {
-    el.innerHTML = sheetHTML(cfg, answers, true);
+    el.innerHTML = sheetHTML(cfg, answers, true, preview);
     const sheet = el.querySelector('.sheet');
     const status = (msg, kind) => { const s = sheet.querySelector('#status'); s.hidden = !msg; s.className = 'status ' + (kind || 'info'); s.innerHTML = msg || ''; };
     const showProgress = () => {
@@ -733,7 +738,13 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   $('#c-title').addEventListener('input', e => { if (!cfg) return; cfg.title = e.target.value; refresh(); });
   $('#c-dir').addEventListener('input', e => { if (!cfg) return; cfg.directions = e.target.value; refresh(); });
   $('#c-check').addEventListener('input', e => { if (!cfg) return; cfg.checklist = e.target.value.split('\n').map(s => s.trim()).filter(Boolean); refresh(); });
-  $('#c-practice').addEventListener('change', e => { if (!cfg) return; cfg.practice = e.target.checked; refresh(); });
+  $('#c-practice').addEventListener('change', e => {
+    if (!cfg) return;
+    cfg.practice = e.target.checked;
+    refresh();
+    // Turning practice off with no assignment linked: point straight at the links box.
+    if (!cfg.practice && !turnsIn(cfg)) $('#c-canvas').focus();
+  });
   $('#c-canvas').addEventListener('input', e => {
     if (!cfg) return;
     setTargets(cfg);
