@@ -59,6 +59,28 @@ export async function submitFile(token, { courseId, assignmentId, fileName, byte
   return { fileId: file.id, submission: sub };
 }
 
+// Canvas description HTML -> plain lines the matcher and checklist can use.
+export function htmlToText(html) {
+  return String(html || '')
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<li[^>]*>/gi, '\n- ')
+    .replace(/<(br|\/p|\/div|\/h[1-6]|\/li|\/tr)[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&rsquo;|&lsquo;/g, "'").replace(/&rdquo;|&ldquo;/g, '"')
+    .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').replace(/\n\n- /g, '\n- ').trim();
+}
+
+// Title + description of an assignment, or title + body of a page.
+export async function readContent(token, { courseId, assignmentId, page }) {
+  const c = encodeURIComponent(courseId);
+  if (assignmentId) {
+    const a = await (await api(token, `/api/v1/courses/${c}/assignments/${encodeURIComponent(assignmentId)}`)).json();
+    return { kind: 'assignment', courseId: String(courseId), assignmentId: String(assignmentId), title: a.name || '', text: htmlToText(a.description) };
+  }
+  const pg = await (await api(token, `/api/v1/courses/${c}/pages/${encodeURIComponent(decodeURIComponent(page))}`)).json();
+  return { kind: 'page', courseId: String(courseId), title: pg.title || '', text: htmlToText(pg.body) };
+}
+
 export async function profile(token) {
   return (await api(token, '/api/v1/users/self/profile')).json();
 }

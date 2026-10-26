@@ -197,10 +197,18 @@
   }
 
   // Criteria text -> short checklist lines for students.
+  // Prefers bulleted/numbered lines (rubrics, uploaded handouts); skips headers and blanks to fill in.
   function checklist(text) {
-    let lines = text.split(/\n+/).map(s => s.trim()).filter(Boolean);
+    const BULLET = /^([-*•▪●◦○■□✓]|\d+[.)]|[a-z][.)])\s+/i;
+    const raw = text.split(/\n+/).map(s => s.trim()).filter(Boolean);
+    const bullets = raw.filter(s => BULLET.test(s));
+    let lines = bullets.length >= 2 ? bullets : raw;
     if (lines.length <= 1) lines = text.split(/(?<=[.!?])\s+/);
-    return lines.map(s => s.replace(/^[-*•\d.)\s]+/, '').trim()).filter(s => s.length > 3).slice(0, 8);
+    return lines
+      .flatMap(s => (s.length > 180 ? s.split(/(?<=[.!?])\s+/) : [s]))
+      .map(s => s.replace(BULLET, '').trim())
+      .filter(s => s.length > 3 && s.split(/\s+/).length >= 3 && !/_{3,}/.test(s) && !/:$/.test(s) && !/^(name|date|period|class)\b/i.test(s))
+      .slice(0, 8);
   }
 
   // Build a self-contained assignment config from an organizer + teacher text.

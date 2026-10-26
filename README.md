@@ -14,10 +14,12 @@ Students can also click **Download my copy (.docx)** at any time.
 | Path | What it is |
 |---|---|
 | `public/index.html` | The page: teacher setup (match, adjust, share) and the student organizer |
+| `public/vendor/` | Word and PDF readers for **Upload the assignment** (served from your site, no outside CDN) |
 | `public/organizers.js` | The 13 organizers and the criteria matcher. Edit here to add or change organizers |
 | `netlify/functions/auth-start.mjs`, `auth-callback.mjs` | Canvas sign-in (OAuth2) |
 | `netlify/functions/submit.mjs` | Builds the .docx, uploads and submits it, emails the copy, revokes the token |
 | `netlify/functions/docx.mjs` | "Download my copy" |
+| `netlify/functions/canvas-fetch.mjs` | Teacher's "Get it": reads an assignment or page description from Canvas |
 | `netlify/lib/` | Shared code: .docx layout, Canvas calls, email, sealed sessions |
 | `api/`, `vercel.json` | Vercel entry points (they call the same functions) |
 | `test/run.mjs` | `npm test`: full flow against a fake Canvas, writes a sample .docx for every organizer to `test/out/` |
@@ -32,6 +34,8 @@ Admin > Developer Keys > **+ API Key**:
   - `url:POST|/api/v1/courses/:course_id/assignments/:assignment_id/submissions/:user_id/files`
   - `url:POST|/api/v1/courses/:course_id/assignments/:assignment_id/submissions`
   - `url:GET|/api/v1/users/:user_id/profile`
+  - `url:GET|/api/v1/courses/:course_id/assignments/:id` (teacher "Get it" from an assignment link)
+  - `url:GET|/api/v1/courses/:course_id/pages/:url_or_id` (teacher "Get it" from a page link)
 
 ### 2. Email account for the copies
 Any SMTP account works. With Google Workspace, use a no-reply account and an App Password (`smtp.gmail.com`, port 465). Check with the district before emailing students from a new account.
@@ -60,7 +64,7 @@ In Terminal, from this folder: `npm install`, then `npx netlify-cli deploy --pro
 Leave the SMTP variables out and everything still works except the email copy.
 
 ## Using it for an assignment
-1. Open the site, paste the assignment title and criteria, click **Find organizers**, pick one.
+1. Open the site and add the assignment one of three ways: upload a Word, PDF, or text file; paste a Canvas assignment or page link and click **Get it** (you sign in with Canvas, and an assignment link also fills in step 4); or type/paste the title and criteria. Click **Find organizers** and pick one. **Start over** clears everything for the next assignment.
 2. Adjust labels, prompts, how many boxes, and the checklist.
 3. In Canvas, set the assignment to **File Uploads** (allow .docx). Paste the assignment's link into step 4.
 4. Copy the **Student link** into the assignment description (a link, or an iframe embed).

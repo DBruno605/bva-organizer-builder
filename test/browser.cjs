@@ -15,13 +15,15 @@ const { chromium } = require('playwright');
     if (u.pathname.endsWith('/self/files')) return send({ upload_url: `http://localhost:${canvas.address().port}/upload`, upload_params: {} });
     if (u.pathname === '/upload') return send({ id: 9 }, 201);
     if (u.pathname.endsWith('/submissions')) return send({ id: 1 });
+    if (req.method === 'GET' && u.pathname === '/api/v1/courses/123/assignments/789') return send({ name: 'Ponyboy and Johnny Compared', description: '<p>Directions:</p><ul><li>Compare and contrast Ponyboy and Johnny in <em>The Outsiders</em>.</li><li>Include three similarities and three differences.</li><li>Use text evidence &amp; page numbers.</li></ul>' });
+    if (req.method === 'GET' && u.pathname === '/api/v1/courses/123/pages/water-cycle') return send({ title: 'Water Cycle Lab', body: '<h2>Lab steps</h2><p>Explain the water cycle as a process. Show the 4 stages in order.</p>' });
     send({}, 404);
   });
   await new Promise(r => canvas.listen(0, r));
   Object.assign(process.env, { CANVAS_BASE_URL: `http://localhost:${canvas.address().port}`, CANVAS_CLIENT_ID: '1', CANVAS_CLIENT_SECRET: 's', SESSION_SECRET: 'y'.repeat(40) });
   const fns = {};
   // VERCEL=1 runs the same flow through the Vercel entry points in api/
-  for (const n of ['auth-start', 'auth-callback', 'submit', 'docx']) {
+  for (const n of ['auth-start', 'auth-callback', 'submit', 'docx', 'canvas-fetch']) {
     if (process.env.VERCEL) { const m = await import(path.resolve(__dirname, `../api/${n}.mjs`)); fns[n] = m.GET || m.POST; }
     else fns[n] = (await import(path.resolve(__dirname, `../netlify/functions/${n}.mjs`))).default;
   }
@@ -44,6 +46,22 @@ const { chromium } = require('playwright');
   const page = await ctx.newPage();
   const errors = []; page.on('pageerror', e => errors.push(e.message)); page.on('console', m => m.type() === 'error' && errors.push(m.text()));
   await page.goto(base); await page.waitForTimeout(800);
+  await page.screenshot({ path: `${shots}/blank.png`, fullPage: true });
+  const uploads = {};
+  for (const f of ['argument-handout.docx', 'argument-handout.pdf', 'old.doc']) {
+    await page.setInputFiles('#a-file', path.join(__dirname, 'fixtures', f));
+    await page.waitForFunction(() => !/^Reading/.test(document.querySelector('#upload-note').textContent), null, { timeout: 15000 });
+    uploads[f] = { note: await page.textContent('#upload-note'), title: await page.inputValue('#a-title'), pick: await page.textContent('.match[aria-pressed="true"] strong').catch(() => ''), checklist: await page.inputValue('#c-check') };
+  }
+  await page.screenshot({ path: `${shots}/upload.png`, fullPage: true });
+  for (const link of ['https://cciubva.instructure.com/courses/123/assignments/789?module_item_id=5', 'https://cciubva.instructure.com/courses/123/pages/water-cycle']) {
+    await page.fill('#a-link', link);
+    await page.click('#link-btn');
+    await page.waitForFunction(() => /^Got|Canvas/.test(document.querySelector('#upload-note').textContent) && !/^Sign in|^Reading/.test(document.querySelector('#upload-note').textContent), null, { timeout: 15000 });
+    uploads[link] = { note: await page.textContent('#upload-note'), title: await page.inputValue('#a-title'), pick: await page.textContent('.match[aria-pressed="true"] strong'), canvas: await page.textContent('#canvas-note'), criteria: await page.inputValue('#a-criteria') };
+  }
+  console.log(JSON.stringify(uploads, null, 1));
+  await page.click('[data-sample="0"]'); await page.waitForTimeout(300);
   await page.screenshot({ path: `${shots}/builder.png`, fullPage: true });
   for (const i of [1, 2, 3]) { await page.click(`[data-sample="${i}"]`); await page.waitForTimeout(300); await page.locator('#preview').screenshot({ path: `${shots}/sample${i}.png` }); }
   await page.click('[data-sample="0"]');

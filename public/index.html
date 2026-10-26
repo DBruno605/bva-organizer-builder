@@ -70,6 +70,12 @@ label.f input, label.f textarea, .secrow input {
 }
 label.f input:focus, label.f textarea:focus, .secrow input:focus { outline: none; background: #fff; box-shadow: 3px 3px 0 var(--accent); }
 label.f textarea { resize: vertical; min-height: 110px; }
+.upload { border: 3px dashed var(--ink); border-radius: 16px; padding: 14px; display: grid; justify-items: center; gap: 6px; text-align: center; background: #f7f9ff; transition: background .15s; }
+.upload.over { background: var(--n1); }
+.upload .btn { background: var(--n2); }
+.or { margin: 0; display: flex; align-items: center; gap: 10px; font-size: .8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.or::before, .or::after { content: ""; flex: 1; border-top: 2px solid var(--ink); opacity: .2; }
+.note.info { background: #e3f4ff; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { border: 2px solid var(--ink); background: #fff; border-radius: 999px; padding: 3px 12px; font-size: .8rem; font-weight: 600; cursor: pointer; }
 .chip:nth-child(4n+1) { background: var(--n0); } .chip:nth-child(4n+2) { background: var(--n1); } .chip:nth-child(4n+3) { background: var(--n2); } .chip:nth-child(4n+4) { background: var(--n4); }
@@ -230,11 +236,22 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   <div class="builder" id="builder">
     <div class="panel">
       <section class="step">
-        <h2><span class="n">1</span>Paste the assignment</h2>
+        <h2><span class="n">1</span>Add the assignment</h2>
+        <div class="upload" id="dropzone">
+          <input type="file" id="a-file" accept=".docx,.pdf,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" hidden>
+          <button type="button" class="btn" id="upload-btn">Upload the assignment</button>
+          <span class="muted">Word, PDF, or text file. You can also drag it here.</span>
+        </div>
+        <label class="f" for="a-link">Or paste a Canvas assignment or page link</label>
+        <div class="copyrow"><input id="a-link" placeholder="https://cciubva.instructure.com/courses/…/assignments/…" autocomplete="off"><button type="button" class="btn" id="link-btn">Get it</button></div>
+        <p class="note" id="upload-note" hidden></p>
+        <p class="or"><span>or type and paste</span></p>
         <label class="f">Assignment title<input id="a-title" autocomplete="off"></label>
         <label class="f">Criteria, directions, or rubric<textarea id="a-criteria" rows="6"></textarea></label>
+        <p class="muted">No assignment handy? Try an example:</p>
         <div class="chips" id="samples" aria-label="Try an example"></div>
         <button type="button" class="btn primary" id="find">Find organizers</button>
+        <button type="button" class="linkbtn" id="start-over">Start over with a blank assignment</button>
       </section>
 
       <section class="step">
@@ -571,6 +588,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   let lastMatch = [];
   function runMatch(pickTop) {
     const text = $('#a-criteria').value;
+    if (!text.trim()) { $('#matches').innerHTML = '<p class="note warn">Paste the assignment\'s criteria in step 1 first.</p>'; $('#a-criteria').focus(); return; }
     lastMatch = GO.match(text);
     if (pickTop || !orgId) choose(lastMatch[0].score ? lastMatch[0].org.id : 'web');
     else renderMatches();
@@ -593,10 +611,15 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   $('#show-all').addEventListener('click', () => { showAll = !showAll; renderMatches(); });
   $('#find').addEventListener('click', () => runMatch(true));
 
+  function canvasFromLink(v) {
+    const m = String(v || '').match(/courses\/(\d+)\/assignments\/(\d+)/);
+    return m ? { courseId: m[1], assignmentId: m[2] } : null;
+  }
+
   function choose(id) {
     orgId = id;
     const org = GO.ORGS.find(o => o.id === id);
-    const canvas = cfg && cfg.canvas;
+    const canvas = (cfg && cfg.canvas) || canvasFromLink($('#c-canvas').value);
     cfg = GO.buildConfig(org, $('#a-title').value.trim(), $('#a-criteria').value);
     cfg.canvas = canvas || null;
     previewAnswers = { name: '', s: {}, checks: [] };
@@ -617,17 +640,123 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
     else s[t.dataset.k] = t.value;
     refresh();
   });
-  $('#c-title').addEventListener('input', e => { cfg.title = e.target.value; refresh(); });
-  $('#c-dir').addEventListener('input', e => { cfg.directions = e.target.value; refresh(); });
-  $('#c-check').addEventListener('input', e => { cfg.checklist = e.target.value.split('\n').map(s => s.trim()).filter(Boolean); refresh(); });
+  $('#c-title').addEventListener('input', e => { if (!cfg) return; cfg.title = e.target.value; refresh(); });
+  $('#c-dir').addEventListener('input', e => { if (!cfg) return; cfg.directions = e.target.value; refresh(); });
+  $('#c-check').addEventListener('input', e => { if (!cfg) return; cfg.checklist = e.target.value.split('\n').map(s => s.trim()).filter(Boolean); refresh(); });
   $('#c-canvas').addEventListener('input', e => {
-    const m = e.target.value.match(/courses\/(\d+)\/assignments\/(\d+)/);
-    cfg.canvas = m ? { courseId: m[1], assignmentId: m[2] } : null;
+    if (!cfg) return;
+    cfg.canvas = canvasFromLink(e.target.value);
     refresh();
   });
 
   let rt;
+  const EMPTY = `<article class="sheet"><div class="sheet-head">
+      <p class="eyebrow">Nothing here yet</p>
+      <h1>Your organizer shows up here</h1>
+      <p class="directions">Upload the assignment or paste its criteria in step 1, then click <b>Find organizers</b>. You'll see what students see, right here, as you make changes.</p>
+    </div></article>`;
+
+  function showEmpty() {
+    cfg = null; orgId = null; previewAnswers = { name: '', s: {}, checks: [] };
+    for (const id of ['#a-link', '#a-title', '#a-criteria', '#c-title', '#c-dir', '#c-check', '#c-canvas', '#share-link']) $(id).value = '';
+    $('#matches').innerHTML = '<p class="muted">Matches show up here after you click Find organizers.</p>';
+    $('#secs').innerHTML = '<p class="muted">Pick an organizer to adjust its boxes.</p>';
+    $('#show-all').hidden = true;
+    const note = $('#canvas-note'); note.className = 'note warn'; note.textContent = 'Paste the assignment\'s link so student work turns in to the right place.';
+    try { localStorage.removeItem('go-builder'); } catch {}
+    const target = $('#tab-student').getAttribute('aria-pressed') === 'true' ? $('#student') : $('#preview');
+    target.innerHTML = EMPTY;
+  }
+  // ----- upload an assignment file: read its text into the criteria box -----
+  const loadScript = src => new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) return res();
+    const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error('The file reader did not load. Check your connection and try again.'));
+    document.head.appendChild(sc);
+  });
+  async function readFile(file) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'txt' || ext === 'md') return file.text();
+    if (ext === 'docx') {
+      await loadScript('vendor/mammoth.browser.min.js');
+      return (await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value;
+    }
+    if (ext === 'pdf') {
+      await loadScript('vendor/pdf.min.js');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+      const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+      let out = '';
+      for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+        const tc = await (await pdf.getPage(i)).getTextContent();
+        for (const it of tc.items) out += it.str + (it.hasEOL ? '\n' : '');
+        out += '\n';
+      }
+      return out;
+    }
+    if (ext === 'doc') throw new Error('Older .doc files can\'t be read. In Word, choose File > Save As > Word Document (.docx), then upload that.');
+    throw new Error('That file type can\'t be read. Upload a Word (.docx), PDF, or text file.');
+  }
+  function guessTitle(text, fileName) {
+    const line = text.split('\n').map(x => x.trim()).find(x => {
+      const words = x.split(/\s+/).length;
+      return words >= 2 && words <= 10 && x.length < 70 && !/_{3,}|^(name|date|period|class|directions)\b/i.test(x);
+    });
+    return line || fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+  }
+  function uploadNote(msg, kind) { const n = $('#upload-note'); n.hidden = !msg; n.className = 'note ' + (kind || 'info'); n.textContent = msg || ''; }
+  async function handleFile(file) {
+    if (!file) return;
+    uploadNote(`Reading ${file.name}…`);
+    try {
+      let text = (await readFile(file)).replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+      if (!text) throw new Error('No text was found in that file. If it is a scanned PDF, type or paste the criteria instead.');
+      $('#a-title').value = guessTitle(text, file.name);
+      $('#a-criteria').value = text.slice(0, 6000);
+      uploadNote(`Read ${file.name}. Check the title and criteria below, then look at the matches in step 2.`, 'ok');
+      runMatch(true);
+    } catch (e) {
+      uploadNote(e.message || 'That file could not be read.', 'warn');
+    }
+  }
+  // ----- or read the description straight from a Canvas assignment or page link -----
+  $('#link-btn').addEventListener('click', async () => {
+    const url = $('#a-link').value.trim();
+    if (!/courses\/\d+\/(assignments\/\d+|pages\/[^/?#\s]+)/.test(url)) {
+      return uploadNote('Paste a link to a Canvas assignment or page. It should contain /courses/…/assignments/… or /courses/…/pages/….', 'warn');
+    }
+    const pop = window.open(FN + 'auth-start', 'go-auth', 'width=520,height=700');
+    if (!pop) return uploadNote('Your browser blocked the Canvas sign-in window. Allow pop-ups for this site, then click Get it again.', 'warn');
+    const btn = $('#link-btn'); btn.disabled = true;
+    uploadNote('Sign in to Canvas in the window that opened…');
+    try {
+      const auth = await waitForAuth();
+      if (!auth.ok) throw new Error('Canvas sign-in did not finish. Click Get it to try again.');
+      uploadNote('Reading it from Canvas…');
+      const res = await fetch(FN + 'canvas-fetch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, session: auth.session }) });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out.ok) throw new Error(out.error || 'Reading from Canvas works once the site is hosted with its Canvas settings.');
+      if (!out.text) throw new Error(`"${out.title}" has no description to read. Type or paste the criteria instead.`);
+      $('#a-title').value = out.title;
+      $('#a-criteria').value = out.text.slice(0, 6000);
+      if (out.kind === 'assignment') $('#c-canvas').value = url.split(/[?#]/)[0];
+      runMatch(true);
+      uploadNote(`Got "${out.title}" from Canvas.` + (out.kind === 'assignment' ? ' Step 4 is connected to this assignment too.' : ''), 'ok');
+    } catch (e) {
+      uploadNote(e.message, 'warn');
+    } finally { btn.disabled = false; }
+  });
+
+  $('#upload-btn').addEventListener('click', () => $('#a-file').click());
+  $('#a-file').addEventListener('change', e => { handleFile(e.target.files[0]); e.target.value = ''; });
+  const dz = $('#dropzone').closest('.step');
+  dz.addEventListener('dragover', e => { e.preventDefault(); $('#dropzone').classList.add('over'); });
+  dz.addEventListener('dragleave', e => { if (!dz.contains(e.relatedTarget)) $('#dropzone').classList.remove('over'); });
+  dz.addEventListener('drop', e => { e.preventDefault(); $('#dropzone').classList.remove('over'); handleFile(e.dataTransfer.files[0]); });
+
+  $('#start-over').addEventListener('click', () => { showEmpty(); uploadNote(''); $('#a-title').focus(); });
+
   function refresh() {
+    if (!cfg) return showEmpty();
+    $('#show-all').hidden = false;
     const note = $('#canvas-note');
     if (cfg.canvas) { note.className = 'note ok'; note.textContent = `Connected: course ${cfg.canvas.courseId}, assignment ${cfg.canvas.assignmentId}.`; }
     else { note.className = 'note warn'; note.textContent = $('#c-canvas').value.trim() ? 'That link does not look like a Canvas assignment. It should contain /courses/…/assignments/….' : 'Paste the assignment\'s link so student work turns in to the right place.'; }
@@ -656,16 +785,16 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   $('#tab-build').addEventListener('click', () => setTab(false));
   $('#tab-student').addEventListener('click', () => setTab(true));
 
-  // start in a realistic state: the saved draft, or the first sample
-  if (draft.cfg && GO.ORGS.some(o => o.id === draft.cfg.org)) {
+  // start from the saved draft, or blank (a draft that is just an untouched example counts as blank)
+  const isSample = SAMPLES.some(x => x.text === draft.criteria);
+  if (draft.cfg && !isSample && GO.ORGS.some(o => o.id === draft.cfg.org)) {
     $('#a-title').value = draft.title || ''; $('#a-criteria').value = draft.criteria || ''; $('#c-canvas').value = draft.canvas || '';
     lastMatch = GO.match($('#a-criteria').value);
     cfg = draft.cfg; orgId = cfg.org;
     $('#c-title').value = cfg.title; $('#c-dir').value = cfg.directions; $('#c-check').value = (cfg.checklist || []).join('\n');
     renderSecs(); renderMatches(); refresh();
   } else {
-    $('#a-title').value = SAMPLES[0].title; $('#a-criteria').value = SAMPLES[0].text;
-    runMatch(true);
+    showEmpty();
   }
 })();
 </script>
