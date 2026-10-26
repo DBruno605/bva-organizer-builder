@@ -76,6 +76,14 @@ label.f textarea { resize: vertical; min-height: 110px; }
 .or { margin: 0; display: flex; align-items: center; gap: 10px; font-size: .8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .or::before, .or::after { content: ""; flex: 1; border-top: 2px solid var(--ink); opacity: .2; }
 .note.info { background: #e3f4ff; }
+.switch { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; cursor: pointer; border: 2px solid var(--ink); border-radius: 14px; padding: 10px 12px; background: #f7f9ff; }
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
+.switch .track { width: 48px; height: 28px; border-radius: 999px; border: 2.5px solid var(--ink); background: #fff; position: relative; transition: background .15s; }
+.switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 17px; height: 17px; border-radius: 50%; background: var(--ink); transition: transform .15s; }
+.switch input:checked + .track { background: var(--go); }
+.switch input:checked + .track::after { transform: translateX(20px); }
+.switch input:focus-visible + .track { outline: 3px dashed var(--accent); outline-offset: 3px; }
+.practice-tag { margin: 0; justify-self: start; font-weight: 700; font-size: .85rem; color: var(--ink); background: var(--n1); border: 2px solid var(--ink); border-radius: 999px; padding: 2px 12px; }
 .step.lib h2 .n { background: var(--n4); }
 .lib-list { display: grid; gap: 8px; }
 .lib-item { border: 2px solid var(--ink); border-radius: 14px; padding: 8px 10px; display: grid; gap: 4px; background: #fff; }
@@ -293,7 +301,8 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
 
       <section class="step">
         <h2><span class="n">4</span>Connect Canvas and share</h2>
-        <label class="f">Canvas assignment links (one per line)<textarea id="c-canvas" rows="3" style="min-height:80px" placeholder="https://cciubva.instructure.com/courses/123/assignments/456&#10;Add a line for each section or course that uses this organizer."></textarea></label>
+        <label class="switch"><input type="checkbox" id="c-practice"><span class="track" aria-hidden="true"></span><span><b>Extra practice</b><br><span class="muted">Optional for students. No Turn in button.</span></span></label>
+        <label class="f" id="canvas-field">Canvas assignment links (one per line)<textarea id="c-canvas" rows="3" style="min-height:80px" placeholder="https://cciubva.instructure.com/courses/123/assignments/456&#10;Add a line for each section or course that uses this organizer."></textarea></label>
         <p class="note warn" id="canvas-note">Paste the assignment's link so student work turns in to the right place.</p>
         <label class="f" for="share-link">Student link</label>
         <div class="copyrow"><input id="share-link" readonly><button type="button" class="btn" id="copy-link">Copy</button></div>
@@ -425,7 +434,11 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
     return { total, filled };
   }
 
+  // Turn in shows only for organizers linked to a Canvas assignment and not marked as extra practice.
+  const turnsIn = cfg => !cfg.practice && !!(cfg.canvas || (cfg.targets || []).length);
+
   function sheetHTML(cfg, answers, live) {
+    const canTurnIn = turnsIn(cfg);
     const checks = (cfg.checklist || []).map((t, i) =>
       `<li><label><input type="checkbox" id="chk-${i}" data-chk="${i}"${(answers.checks || [])[i] ? ' checked' : ''}><span>${esc(t)}</span></label></li>`).join('');
     return `<article class="sheet" data-look="${esc(answers.look || 'pop')}">
@@ -438,16 +451,17 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
         </div>
         <h1>${esc(cfg.title)}</h1>
         ${cfg.directions ? `<p class="directions">${esc(cfg.directions)}</p>` : ''}
+        ${canTurnIn ? '' : '<p class="practice-tag">Extra practice: use it if it helps. Nothing to turn in.</p>'}
         <div class="who">
           <label>Your name<input id="st-name" autocomplete="name" value="${esc(answers.name || '')}"></label>
           <div class="progress"><span class="ptext" id="prog-text"></span><span class="bar"><i id="prog-bar"></i>${ROCKET}</span></div>
         </div>
       </header>
       ${organizerHTML(cfg, answers, live)}
-      ${checks ? `<section class="checklist"><h2>Before you turn it in</h2><ul class="checks">${checks}</ul></section>` : ''}
+      ${checks ? `<section class="checklist"><h2>${canTurnIn ? 'Before you turn it in' : 'Check your work'}</h2><ul class="checks">${checks}</ul></section>` : ''}
       <div class="actions">
-        <button type="button" class="btn primary" id="turn-in">Turn in to Canvas</button>
-        <button type="button" class="btn" id="download">Download my copy (.docx)</button>
+        ${canTurnIn ? '<button type="button" class="btn primary" id="turn-in">Turn in to Canvas</button>' : ''}
+        <button type="button" class="btn${canTurnIn ? '' : ' primary'}" id="download">${canTurnIn ? 'Download my copy (.docx)' : 'Save my copy (.docx)'}</button>
         <span class="saved" id="saved"></span>
       </div>
       <p class="status" id="status" role="status" hidden></p>
@@ -536,7 +550,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
       } finally { b.disabled = false; }
     });
 
-    sheet.querySelector('#turn-in').addEventListener('click', async ev => {
+    if (sheet.querySelector('#turn-in')) sheet.querySelector('#turn-in').addEventListener('click', async ev => {
       const b = ev.currentTarget;
       if (preview) return status('In the real page this opens Canvas sign-in, turns in the .docx, and emails the student a copy. It works once the site is hosted.', 'info');
       if (!cfg.canvas && !(cfg.targets || []).length) return status('This organizer is not connected to a Canvas assignment yet. Ask your teacher for the updated link.', 'bad');
@@ -697,6 +711,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
     const org = GO.ORGS.find(o => o.id === id);
     cfg = GO.buildConfig(org, $('#a-title').value.trim(), $('#a-criteria').value);
     setTargets(cfg);
+    cfg.practice = $('#c-practice').checked;
     previewAnswers = { name: '', s: {}, checks: [] };
     $('#c-title').value = cfg.title; $('#c-dir').value = cfg.directions; $('#c-check').value = cfg.checklist.join('\n');
     renderSecs(); renderMatches(); refresh();
@@ -718,6 +733,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   $('#c-title').addEventListener('input', e => { if (!cfg) return; cfg.title = e.target.value; refresh(); });
   $('#c-dir').addEventListener('input', e => { if (!cfg) return; cfg.directions = e.target.value; refresh(); });
   $('#c-check').addEventListener('input', e => { if (!cfg) return; cfg.checklist = e.target.value.split('\n').map(s => s.trim()).filter(Boolean); refresh(); });
+  $('#c-practice').addEventListener('change', e => { if (!cfg) return; cfg.practice = e.target.checked; refresh(); });
   $('#c-canvas').addEventListener('input', e => {
     if (!cfg) return;
     setTargets(cfg);
@@ -735,6 +751,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
     cfg = null; orgId = null; currentId = null; previewAnswers = { name: '', s: {}, checks: [] };
     if (typeof renderLib === 'function') renderLib();
     for (const id of ['#a-link', '#a-title', '#a-criteria', '#c-title', '#c-dir', '#c-check', '#c-canvas', '#share-link']) $(id).value = '';
+    $('#c-practice').checked = false; $('#canvas-field').hidden = false;
     $('#matches').innerHTML = '<p class="muted">Matches show up here after you click Find organizers.</p>';
     $('#secs').innerHTML = '<p class="muted">Pick an organizer to adjust its boxes.</p>';
     $('#show-all').hidden = true;
@@ -841,12 +858,15 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
     $('#show-all').hidden = false;
     const note = $('#canvas-note');
     const ts = cfg.targets || (cfg.canvas ? [cfg.canvas] : []);
-    if (ts.length === 1) { note.className = 'note ok'; note.textContent = `Connected: course ${ts[0].courseId}, assignment ${ts[0].assignmentId}.`; }
+    $('#c-practice').checked = !!cfg.practice;
+    $('#canvas-field').hidden = !!cfg.practice;
+    if (cfg.practice) { note.className = 'note ok'; note.textContent = 'Extra practice: students can fill it in and save a copy. They won\'t see a Turn in button. Share the student link anywhere in Canvas, like a page or module.'; }
+    else if (ts.length === 1) { note.className = 'note ok'; note.textContent = `Connected: course ${ts[0].courseId}, assignment ${ts[0].assignmentId}.`; }
     else if (ts.length > 1) {
       const courses = new Set(ts.map(t => t.courseId)).size;
       note.className = 'note ok';
       note.textContent = `Connected to ${ts.length} assignments in ${courses} course${courses > 1 ? 's' : ''}. One student link works for all of them.`;
-    } else { note.className = 'note warn'; note.textContent = $('#c-canvas').value.trim() ? 'That does not look like a Canvas assignment link. It should contain /courses/…/assignments/….' : 'Paste the assignment\'s link so student work turns in to the right place.'; }
+    } else { note.className = 'note warn'; note.textContent = $('#c-canvas').value.trim() ? 'That does not look like a Canvas assignment link. It should contain /courses/…/assignments/….' : 'Add the Canvas assignment link so students can turn it in. Until then, students won\'t see a Turn in button.'; }
     $('#share-link').value = location.origin + location.pathname + '?o=' + enc(cfg);
     store.set('go-builder', { title: $('#a-title').value, criteria: $('#a-criteria').value, canvas: $('#c-canvas').value, cfg, libId: currentId });
     renderLib();
@@ -887,7 +907,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
       const when = new Date(it.savedAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
       return `<div class="lib-item${it.id === currentId ? ' open' : ''}" data-id="${esc(it.id)}">
         <strong>${esc(it.name)}</strong>
-        <span class="meta">${esc(it.cfg.name)} · ${n ? n + ' assignment' + (n > 1 ? 's' : '') : 'no assignment yet'} · saved ${esc(when)}</span>
+        <span class="meta">${esc(it.cfg.name)} · ${it.cfg.practice ? 'extra practice' : n ? n + ' assignment' + (n > 1 ? 's' : '') : 'no assignment yet'} · saved ${esc(when)}</span>
         <span class="acts">
           <button type="button" class="linkbtn" data-act="open">${it.id === currentId ? 'Open now' : 'Open'}</button>
           <button type="button" class="linkbtn" data-act="link">Copy student link</button>

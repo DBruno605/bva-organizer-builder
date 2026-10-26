@@ -68,7 +68,8 @@ Leave the SMTP variables out and everything still works except the email copy.
 2. Adjust labels, prompts, how many boxes, and the checklist.
 3. In Canvas, set each assignment to **File Uploads** (allow .docx). Paste the assignment links into step 4, one per line. One organizer can serve several sections or courses: each student's work goes to the assignment in the course they're enrolled in.
 4. Copy the **Student link** into each assignment's description (a link, or an iframe embed).
-5. Under **My organizers**, name it and click **Save**. Use **Save as a new version** for variations (another class, a different number of boxes). Saved organizers live in that browser; **Download a backup** / **Load a backup** moves them to another computer.
+5. For an optional resource, turn on **Extra practice** in step 4. Students can fill it in and save a copy, but there's no Turn in button. The Turn in button also stays hidden until at least one assignment link is added.
+6. Under **My organizers**, name it and click **Save**. Use **Save as a new version** for variations (another class, a different number of boxes). Saved organizers live in that browser; **Download a backup** / **Load a backup** moves them to another computer.
 
 ## Things to know
 - Student work saves in the browser on that device. Switching Chromebooks starts a fresh copy.

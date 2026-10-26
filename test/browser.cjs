@@ -76,7 +76,14 @@ const { chromium } = require('playwright');
   await page.reload(); await page.waitForTimeout(500);
   const afterReload = await page.$$eval('.lib-item strong', els => els.map(e => e.textContent));
   console.log(JSON.stringify({ multiNote, libNames, reopenedTitle, afterReload }, null, 1));
-  await page.fill('#c-canvas', '');
+  await page.click('[data-sample="0"]'); await page.waitForTimeout(300);
+  await page.fill('#c-canvas', ''); await page.waitForTimeout(300);
+  const noLinkButtons = await page.$$eval('#preview .actions button', b => b.map(x => x.textContent));
+  await page.click('label.switch'); await page.waitForTimeout(400);
+  const practice = { note: await page.textContent('#canvas-note'), fieldHidden: await page.$eval('#canvas-field', e => e.hidden), buttons: await page.$$eval('#preview .actions button', b => b.map(x => x.textContent)), tag: await page.textContent('#preview .practice-tag') };
+  await page.locator('#preview').screenshot({ path: `${shots}/practice.png` });
+  await page.click('label.switch');
+  console.log(JSON.stringify({ noLinkButtons, practice }, null, 1));
   await page.screenshot({ path: `${shots}/builder.png`, fullPage: true });
   for (const i of [1, 2, 3]) { await page.click(`[data-sample="${i}"]`); await page.waitForTimeout(300); await page.locator('#preview').screenshot({ path: `${shots}/sample${i}.png` }); }
   await page.click('[data-sample="0"]');

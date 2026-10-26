@@ -19,6 +19,7 @@ export default async (req) => {
   const { cfg, answers, session } = body || {};
   const sess = unseal(session);
   if (!sess) return json({ error: 'Your Canvas sign-in expired. Click Turn in again.', code: 'auth' }, 401);
+  if (cfg && cfg.practice) return json({ error: 'This organizer is extra practice, so there is nothing to turn in.' }, 400);
   // One organizer can be attached to several assignments (sections, courses).
   // Turn in to the first one this student can submit to.
   const targets = (cfg && Array.isArray(cfg.targets) && cfg.targets.length ? cfg.targets : [cfg && cfg.canvas])
