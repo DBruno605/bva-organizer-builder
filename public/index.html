@@ -76,6 +76,15 @@ label.f textarea { resize: vertical; min-height: 110px; }
 .or { margin: 0; display: flex; align-items: center; gap: 10px; font-size: .8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .or::before, .or::after { content: ""; flex: 1; border-top: 2px solid var(--ink); opacity: .2; }
 .note.info { background: #e3f4ff; }
+.step.lib h2 .n { background: var(--n4); }
+.lib-list { display: grid; gap: 8px; }
+.lib-item { border: 2px solid var(--ink); border-radius: 14px; padding: 8px 10px; display: grid; gap: 4px; background: #fff; }
+.lib-item.open { background: var(--n0); box-shadow: 3px 3px 0 var(--ink); }
+.lib-item strong { font-family: var(--display); font-weight: 400; font-size: 1.05rem; overflow-wrap: anywhere; }
+.lib-item .meta { font-size: .78rem; color: var(--muted); }
+.lib-item .acts { display: flex; flex-wrap: wrap; gap: 12px; }
+.lib-item .acts .linkbtn { font-size: .85rem; }
+.lib-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { border: 2px solid var(--ink); background: #fff; border-radius: 999px; padding: 3px 12px; font-size: .8rem; font-weight: 600; cursor: pointer; }
 .chip:nth-child(4n+1) { background: var(--n0); } .chip:nth-child(4n+2) { background: var(--n1); } .chip:nth-child(4n+3) { background: var(--n2); } .chip:nth-child(4n+4) { background: var(--n4); }
@@ -235,6 +244,19 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
 
   <div class="builder" id="builder">
     <div class="panel">
+      <section class="step lib">
+        <h2><span class="n"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l2 4.2 4.6.6-3.4 3.2.9 4.5L8 11.8 3.9 14l.9-4.5L1.4 6.3 6 5.7z" fill="#1b1838"/></svg></span>My organizers</h2>
+        <div id="lib-list" class="lib-list"></div>
+        <label class="f">Name for this version<input id="lib-name" autocomplete="off" placeholder="Example: Outsiders Double Bubble, 3rd period"></label>
+        <div class="lib-actions">
+          <button type="button" class="btn primary" id="lib-save">Save</button>
+          <button type="button" class="btn" id="lib-copy">Save as a new version</button>
+        </div>
+        <p class="note" id="lib-note" hidden></p>
+        <p class="muted">Saved in this browser. <button type="button" class="linkbtn" id="lib-export">Download a backup</button> · <button type="button" class="linkbtn" id="lib-import">Load a backup</button></p>
+        <input type="file" id="lib-file" accept=".json,application/json" hidden>
+      </section>
+
       <section class="step">
         <h2><span class="n">1</span>Add the assignment</h2>
         <div class="upload" id="dropzone">
@@ -271,13 +293,13 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
 
       <section class="step">
         <h2><span class="n">4</span>Connect Canvas and share</h2>
-        <label class="f">Canvas assignment link<input id="c-canvas" placeholder="https://cciubva.instructure.com/courses/123/assignments/456" autocomplete="off"></label>
+        <label class="f">Canvas assignment links (one per line)<textarea id="c-canvas" rows="3" style="min-height:80px" placeholder="https://cciubva.instructure.com/courses/123/assignments/456&#10;Add a line for each section or course that uses this organizer."></textarea></label>
         <p class="note warn" id="canvas-note">Paste the assignment's link so student work turns in to the right place.</p>
         <label class="f" for="share-link">Student link</label>
         <div class="copyrow"><input id="share-link" readonly><button type="button" class="btn" id="copy-link">Copy</button></div>
         <ol class="howto">
           <li>In Canvas, set the assignment's submission type to <b>File Uploads</b> (allow .docx).</li>
-          <li>Paste the student link into the assignment description.</li>
+          <li>Paste the same student link into each assignment's description. Each student's work goes to the assignment in their own course.</li>
           <li>Students fill it in, click <b>Turn in to Canvas</b>, and get a copy by email.</li>
         </ol>
       </section>
@@ -502,7 +524,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
     sheet.querySelector('#turn-in').addEventListener('click', async ev => {
       const b = ev.currentTarget;
       if (preview) return status('In the real page this opens Canvas sign-in, turns in the .docx, and emails the student a copy. It works once the site is hosted.', 'info');
-      if (!cfg.canvas) return status('This organizer is not connected to a Canvas assignment yet. Ask your teacher for the updated link.', 'bad');
+      if (!cfg.canvas && !(cfg.targets || []).length) return status('This organizer is not connected to a Canvas assignment yet. Ask your teacher for the updated link.', 'bad');
       const p = progressOf(cfg, answers);
       if (!p.filled) return status('Fill in at least one box before you turn it in.', 'bad');
       saveNow && saveNow();
@@ -600,7 +622,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
 
   // ---------- teacher builder ----------
   const draft = store.get('go-builder') || {};
-  let cfg = null, orgId = null, showAll = false;
+  let cfg = null, orgId = null, showAll = false, currentId = null;
   let previewAnswers = { name: '', s: {}, checks: [] };
 
   $('#samples').innerHTML = SAMPLES.map((s, i) => `<button type="button" class="chip" data-sample="${i}">${esc(s.tag)}</button>`).join('');
@@ -642,17 +664,24 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   $('#show-all').addEventListener('click', () => { showAll = !showAll; renderMatches(); });
   $('#find').addEventListener('click', () => runMatch(true));
 
-  function canvasFromLink(v) {
-    const m = String(v || '').match(/courses\/(\d+)\/assignments\/(\d+)/);
-    return m ? { courseId: m[1], assignmentId: m[2] } : null;
+  // Every Canvas assignment link in the box -> [{ courseId, assignmentId }], no repeats.
+  function targetsFromText(v) {
+    const out = [];
+    for (const m of String(v || '').matchAll(/courses\/(\d+)\/assignments\/(\d+)/g)) {
+      if (!out.some(t => t.courseId === m[1] && t.assignmentId === m[2])) out.push({ courseId: m[1], assignmentId: m[2] });
+    }
+    return out;
+  }
+  function setTargets(c) {
+    c.targets = targetsFromText($('#c-canvas').value);
+    c.canvas = c.targets[0] || null;
   }
 
   function choose(id) {
     orgId = id;
     const org = GO.ORGS.find(o => o.id === id);
-    const canvas = (cfg && cfg.canvas) || canvasFromLink($('#c-canvas').value);
     cfg = GO.buildConfig(org, $('#a-title').value.trim(), $('#a-criteria').value);
-    cfg.canvas = canvas || null;
+    setTargets(cfg);
     previewAnswers = { name: '', s: {}, checks: [] };
     $('#c-title').value = cfg.title; $('#c-dir').value = cfg.directions; $('#c-check').value = cfg.checklist.join('\n');
     renderSecs(); renderMatches(); refresh();
@@ -676,7 +705,7 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   $('#c-check').addEventListener('input', e => { if (!cfg) return; cfg.checklist = e.target.value.split('\n').map(s => s.trim()).filter(Boolean); refresh(); });
   $('#c-canvas').addEventListener('input', e => {
     if (!cfg) return;
-    cfg.canvas = canvasFromLink(e.target.value);
+    setTargets(cfg);
     refresh();
   });
 
@@ -688,7 +717,8 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
     </div></article>`;
 
   function showEmpty() {
-    cfg = null; orgId = null; previewAnswers = { name: '', s: {}, checks: [] };
+    cfg = null; orgId = null; currentId = null; previewAnswers = { name: '', s: {}, checks: [] };
+    if (typeof renderLib === 'function') renderLib();
     for (const id of ['#a-link', '#a-title', '#a-criteria', '#c-title', '#c-dir', '#c-check', '#c-canvas', '#share-link']) $(id).value = '';
     $('#matches').innerHTML = '<p class="muted">Matches show up here after you click Find organizers.</p>';
     $('#secs').innerHTML = '<p class="muted">Pick an organizer to adjust its boxes.</p>';
@@ -795,10 +825,16 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
     if (!cfg) return showEmpty();
     $('#show-all').hidden = false;
     const note = $('#canvas-note');
-    if (cfg.canvas) { note.className = 'note ok'; note.textContent = `Connected: course ${cfg.canvas.courseId}, assignment ${cfg.canvas.assignmentId}.`; }
-    else { note.className = 'note warn'; note.textContent = $('#c-canvas').value.trim() ? 'That link does not look like a Canvas assignment. It should contain /courses/…/assignments/….' : 'Paste the assignment\'s link so student work turns in to the right place.'; }
+    const ts = cfg.targets || (cfg.canvas ? [cfg.canvas] : []);
+    if (ts.length === 1) { note.className = 'note ok'; note.textContent = `Connected: course ${ts[0].courseId}, assignment ${ts[0].assignmentId}.`; }
+    else if (ts.length > 1) {
+      const courses = new Set(ts.map(t => t.courseId)).size;
+      note.className = 'note ok';
+      note.textContent = `Connected to ${ts.length} assignments in ${courses} course${courses > 1 ? 's' : ''}. One student link works for all of them.`;
+    } else { note.className = 'note warn'; note.textContent = $('#c-canvas').value.trim() ? 'That does not look like a Canvas assignment link. It should contain /courses/…/assignments/….' : 'Paste the assignment\'s link so student work turns in to the right place.'; }
     $('#share-link').value = location.origin + location.pathname + '?o=' + enc(cfg);
-    store.set('go-builder', { title: $('#a-title').value, criteria: $('#a-criteria').value, canvas: $('#c-canvas').value, cfg });
+    store.set('go-builder', { title: $('#a-title').value, criteria: $('#a-criteria').value, canvas: $('#c-canvas').value, cfg, libId: currentId });
+    renderLib();
     clearTimeout(rt);
     rt = setTimeout(() => {
       const target = $('#tab-student').getAttribute('aria-pressed') === 'true' ? $('#student') : $('#preview');
@@ -822,17 +858,117 @@ ol.howto { margin: 0; padding-left: 22px; font-size: .9rem; display: grid; gap: 
   $('#tab-build').addEventListener('click', () => setTab(false));
   $('#tab-student').addEventListener('click', () => setTab(true));
 
+  // ----- My organizers: named versions saved in this browser -----
+  const LIB = 'go-library';
+  const lib = () => { const l = store.get(LIB); return Array.isArray(l) ? l : []; };
+  const studentLink = c => location.origin + location.pathname + '?o=' + enc(c);
+  function libNote(msg, kind) { const n = $('#lib-note'); n.hidden = !msg; n.className = 'note ' + (kind || 'ok'); n.textContent = msg || ''; }
+  let confirmDelete = null;
+
+  function renderLib() {
+    const items = lib().sort((a, b) => b.savedAt - a.savedAt);
+    $('#lib-list').innerHTML = items.length ? items.map(it => {
+      const n = (it.cfg.targets || (it.cfg.canvas ? [it.cfg.canvas] : [])).length;
+      const when = new Date(it.savedAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
+      return `<div class="lib-item${it.id === currentId ? ' open' : ''}" data-id="${esc(it.id)}">
+        <strong>${esc(it.name)}</strong>
+        <span class="meta">${esc(it.cfg.name)} · ${n ? n + ' assignment' + (n > 1 ? 's' : '') : 'no assignment yet'} · saved ${esc(when)}</span>
+        <span class="acts">
+          <button type="button" class="linkbtn" data-act="open">${it.id === currentId ? 'Open now' : 'Open'}</button>
+          <button type="button" class="linkbtn" data-act="link">Copy student link</button>
+          <button type="button" class="linkbtn" data-act="delete">${confirmDelete === it.id ? 'Click again to delete' : 'Delete'}</button>
+        </span></div>`;
+    }).join('') : '<p class="muted">Nothing saved yet. Build an organizer, then click Save. Save each version you want to reuse.</p>';
+    $('#lib-save').disabled = $('#lib-copy').disabled = !cfg;
+    $('#lib-copy').hidden = !currentId;
+    $('#lib-save').textContent = currentId ? 'Save changes' : 'Save';
+  }
+
+  function saveToLib(asNew) {
+    if (!cfg) return;
+    const items = lib();
+    let name = $('#lib-name').value.trim() || cfg.title || 'Untitled organizer';
+    const existing = !asNew && items.find(x => x.id === currentId);
+    if (asNew && items.some(x => x.name === name)) {
+      let v = 2; while (items.some(x => x.name === `${name} (v${v})`)) v++;
+      name = `${name} (v${v})`;
+    }
+    const entry = {
+      id: existing ? existing.id : Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name, savedAt: Date.now(),
+      title: $('#a-title').value, criteria: $('#a-criteria').value, canvas: $('#c-canvas').value,
+      cfg: JSON.parse(JSON.stringify(cfg)),
+    };
+    const next = items.filter(x => x.id !== entry.id).concat(entry);
+    if (!store.set(LIB, next)) return libNote('This browser would not save. Try Download a backup instead.', 'warn');
+    currentId = entry.id; $('#lib-name').value = name;
+    libNote(existing ? `Saved changes to "${name}".` : `Saved "${name}". You can open it again any time.`);
+    refresh();
+  }
+
+  function openFromLib(id) {
+    const it = lib().find(x => x.id === id); if (!it) return;
+    currentId = it.id;
+    $('#a-title').value = it.title || ''; $('#a-criteria').value = it.criteria || ''; $('#c-canvas').value = it.canvas || ''; $('#a-link').value = '';
+    $('#lib-name').value = it.name;
+    lastMatch = GO.match(it.criteria || '');
+    cfg = JSON.parse(JSON.stringify(it.cfg)); orgId = cfg.org;
+    previewAnswers = { name: '', s: {}, checks: [] };
+    $('#c-title').value = cfg.title; $('#c-dir').value = cfg.directions || ''; $('#c-check').value = (cfg.checklist || []).join('\n');
+    renderSecs(); renderMatches(); refresh();
+    libNote(`Opened "${it.name}". Changes stay unsaved until you click Save changes.`);
+  }
+
+  $('#lib-list').addEventListener('click', async e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const id = b.closest('.lib-item').dataset.id, it = lib().find(x => x.id === id);
+    if (b.dataset.act === 'open') openFromLib(id);
+    if (b.dataset.act === 'link') {
+      try { await navigator.clipboard.writeText(studentLink(it.cfg)); libNote(`Copied the student link for "${it.name}".`); }
+      catch { libNote('Copying was blocked. Open it and copy the link from step 4.', 'warn'); }
+    }
+    if (b.dataset.act === 'delete') {
+      if (confirmDelete !== id) { confirmDelete = id; renderLib(); setTimeout(() => { if (confirmDelete === id) { confirmDelete = null; renderLib(); } }, 4000); return; }
+      confirmDelete = null;
+      store.set(LIB, lib().filter(x => x.id !== id));
+      if (currentId === id) currentId = null;
+      libNote(`Deleted "${it.name}". Student links you already shared keep working.`);
+      renderLib();
+    }
+  });
+  $('#lib-save').addEventListener('click', () => saveToLib(false));
+  $('#lib-copy').addEventListener('click', () => saveToLib(true));
+  $('#lib-export').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(lib(), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'my-organizers.json';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
+  $('#lib-import').addEventListener('click', () => $('#lib-file').click());
+  $('#lib-file').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try {
+      const incoming = JSON.parse(await f.text());
+      if (!Array.isArray(incoming) || !incoming.every(x => x && x.id && x.cfg && Array.isArray(x.cfg.sections))) throw new Error();
+      const merged = lib().filter(x => !incoming.some(y => y.id === x.id)).concat(incoming);
+      store.set(LIB, merged);
+      libNote(`Loaded ${incoming.length} organizer${incoming.length === 1 ? '' : 's'} from ${f.name}.`);
+      renderLib();
+    } catch { libNote('That file is not an organizer backup. Use a my-organizers.json file from Download a backup.', 'warn'); }
+  });
+
   // start from the saved draft, or blank (a draft that is just an untouched example counts as blank)
   const isSample = SAMPLES.some(x => x.text === draft.criteria);
   if (draft.cfg && !isSample && GO.ORGS.some(o => o.id === draft.cfg.org)) {
     $('#a-title').value = draft.title || ''; $('#a-criteria').value = draft.criteria || ''; $('#c-canvas').value = draft.canvas || '';
     lastMatch = GO.match($('#a-criteria').value);
-    cfg = draft.cfg; orgId = cfg.org;
+    cfg = draft.cfg; orgId = cfg.org; currentId = lib().some(x => x.id === draft.libId) ? draft.libId : null;
+    if (currentId) $('#lib-name').value = lib().find(x => x.id === currentId).name;
     $('#c-title').value = cfg.title; $('#c-dir').value = cfg.directions; $('#c-check').value = (cfg.checklist || []).join('\n');
     renderSecs(); renderMatches(); refresh();
   } else {
     showEmpty();
   }
+  renderLib();
   if (returned && returned.pending.type === 'fetch') { $('#a-link').value = returned.pending.url || ''; finishLinkFetch(returned.pending.url, returned); }
 })();
 </script>

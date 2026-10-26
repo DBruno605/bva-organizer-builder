@@ -19,7 +19,11 @@ export default async (req) => {
   const { cfg, answers, session } = body || {};
   const sess = unseal(session);
   if (!sess) return json({ error: 'Your Canvas sign-in expired. Click Turn in again.', code: 'auth' }, 401);
-  if (!cfg || !cfg.canvas || !cfg.canvas.courseId || !cfg.canvas.assignmentId) {
+  // One organizer can be attached to several assignments (sections, courses).
+  // Turn in to the first one this student can submit to.
+  const targets = (cfg && Array.isArray(cfg.targets) && cfg.targets.length ? cfg.targets : [cfg && cfg.canvas])
+    .filter(t => t && t.courseId && t.assignmentId);
+  if (!targets.length) {
     return json({ error: 'This organizer is not linked to a Canvas assignment yet. Ask your teacher for the updated link.' }, 400);
   }
 
@@ -27,19 +31,23 @@ export default async (req) => {
   const fname = fileName(cfg, name);
   const bytes = await buildDocx(cfg, answers, { studentName: name });
 
-  try {
-    await submitFile(sess.token, {
-      courseId: cfg.canvas.courseId,
-      assignmentId: cfg.canvas.assignmentId,
-      fileName: fname,
-      bytes,
-    });
-  } catch (e) {
+  let submitted = null, lastErr = null;
+  for (const t of targets) {
+    try {
+      await submitFile(sess.token, { courseId: t.courseId, assignmentId: t.assignmentId, fileName: fname, bytes });
+      submitted = t;
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (![401, 403, 404].includes(e.status)) break; // not this student's course: try the next one
+    }
+  }
+  if (!submitted) {
     await revoke(sess.token);
-    const msg = e.status === 401 || e.status === 403
+    console.error(lastErr);
+    const msg = lastErr && [401, 403, 404].includes(lastErr.status)
       ? 'Canvas would not accept this submission. Check that you are in this class and the assignment is open.'
       : 'Canvas did not accept the file. Try again, or download your copy and upload it in Canvas.';
-    console.error(e);
     return json({ error: msg }, 502);
   }
 

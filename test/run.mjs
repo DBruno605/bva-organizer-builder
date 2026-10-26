@@ -13,6 +13,7 @@ const fake = http.createServer(async (req, res) => {
   const send = (o, s = 200) => { res.writeHead(s, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
   if (req.url === '/login/oauth2/token' && req.method === 'POST') return send({ access_token: 'TOKEN123', user: { id: 42, name: 'Sam Rivera' } });
   if (req.url === '/login/oauth2/token' && req.method === 'DELETE') return send({});
+  if (req.url.startsWith('/api/v1/courses/111/')) return send({ errors: [{ message: 'user not authorized' }] }, 401);
   if (req.url.endsWith('/submissions/self/files')) return send({ upload_url: `http://localhost:${port}/upload`, upload_params: { key: 'abc' } });
   if (req.url === '/upload') { res.writeHead(302, { Location: `http://localhost:${port}/api/v1/files/9/create_success` }); return res.end(); }
   if (req.url.startsWith('/api/v1/files/9')) return send({ id: 9 });
@@ -57,6 +58,15 @@ const subCall = calls.find(c => c.u === '/api/v1/courses/123/assignments/456/sub
 assert.ok(subCall && subCall.auth === 'Bearer TOKEN123');
 assert.ok(calls.some(c => c.m === 'DELETE' && c.u === '/login/oauth2/token'), 'token revoked');
 assert.ok(calls.find(c => c.u === '/upload').len > 3000, 'docx bytes uploaded');
+
+// 2b. one organizer attached to several assignments: skips the course the student isn't in
+const r2b = await callback(new Request(`https://go.example/.netlify/functions/auth-callback?code=abc&state=${encodeURIComponent(new URL((await start(new Request('https://go.example/x'))).headers.get('location')).searchParams.get('state'))}`));
+const session2 = (await r2b.text()).match(/"session":"([^"]+)"/)[1];
+const multi = { ...cfg, targets: [{ courseId: '111', assignmentId: '1' }, { courseId: '123', assignmentId: '789' }] };
+const before = calls.length;
+const r3b = await (await submit(new Request('https://go.example/x', { method: 'POST', body: JSON.stringify({ cfg: multi, answers, session: session2 }) }))).json();
+assert.equal(r3b.ok, true, JSON.stringify(r3b));
+assert.ok(calls.slice(before).some(c => c.u === '/api/v1/courses/123/assignments/789/submissions'), 'submitted to the second course');
 
 // 3. expired/forged session is refused
 const r4 = await submit(new Request('https://go.example/x', { method: 'POST', body: JSON.stringify({ cfg, answers, session: 'nope' }) }));

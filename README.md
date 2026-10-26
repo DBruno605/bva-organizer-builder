@@ -66,8 +66,9 @@ Leave the SMTP variables out and everything still works except the email copy.
 ## Using it for an assignment
 1. Open the site and add the assignment one of three ways: upload a Word, PDF, or text file; paste a Canvas assignment or page link and click **Get it** (you sign in with Canvas, and an assignment link also fills in step 4); or type/paste the title and criteria. Click **Find organizers** and pick one. **Start over** clears everything for the next assignment.
 2. Adjust labels, prompts, how many boxes, and the checklist.
-3. In Canvas, set the assignment to **File Uploads** (allow .docx). Paste the assignment's link into step 4.
-4. Copy the **Student link** into the assignment description (a link, or an iframe embed).
+3. In Canvas, set each assignment to **File Uploads** (allow .docx). Paste the assignment links into step 4, one per line. One organizer can serve several sections or courses: each student's work goes to the assignment in the course they're enrolled in.
+4. Copy the **Student link** into each assignment's description (a link, or an iframe embed).
+5. Under **My organizers**, name it and click **Save**. Use **Save as a new version** for variations (another class, a different number of boxes). Saved organizers live in that browser; **Download a backup** / **Load a backup** moves them to another computer.
 
 ## Things to know
 - Student work saves in the browser on that device. Switching Chromebooks starts a fresh copy.

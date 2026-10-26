@@ -64,6 +64,19 @@ const { chromium } = require('playwright');
   }
   console.log(JSON.stringify(uploads, null, 1));
   await page.click('[data-sample="0"]'); await page.waitForTimeout(300);
+  // My organizers: save, save a new version, open, delete
+  await page.fill('#c-canvas', 'https://cciubva.instructure.com/courses/123/assignments/456\nhttps://cciubva.instructure.com/courses/124/assignments/900');
+  const multiNote = await page.textContent('#canvas-note');
+  await page.fill('#lib-name', 'Outsiders 3rd period'); await page.click('#lib-save');
+  await page.fill('#c-title', 'Ponyboy vs. Johnny (honors)'); await page.click('#lib-copy');
+  const libNames = await page.$$eval('.lib-item strong', els => els.map(e => e.textContent));
+  await page.click('.lib-item:has-text("Outsiders 3rd period") >> text=Open');
+  const reopenedTitle = await page.inputValue('#c-title');
+  await page.click('.lib-item:has-text("(v2)") >> text=Delete'); await page.click('.lib-item:has-text("(v2)") >> text=Click again to delete');
+  await page.reload(); await page.waitForTimeout(500);
+  const afterReload = await page.$$eval('.lib-item strong', els => els.map(e => e.textContent));
+  console.log(JSON.stringify({ multiNote, libNames, reopenedTitle, afterReload }, null, 1));
+  await page.fill('#c-canvas', '');
   await page.screenshot({ path: `${shots}/builder.png`, fullPage: true });
   for (const i of [1, 2, 3]) { await page.click(`[data-sample="${i}"]`); await page.waitForTimeout(300); await page.locator('#preview').screenshot({ path: `${shots}/sample${i}.png` }); }
   await page.click('[data-sample="0"]');
